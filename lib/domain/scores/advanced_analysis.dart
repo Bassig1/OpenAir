@@ -1,5 +1,4 @@
 import '../models/day_summary.dart';
-import '../models/health_extras.dart';
 
 /// Whoop-style advanced analysis derived from Fitbit/Google Health metrics.
 class AdvancedAnalysis {
@@ -163,7 +162,7 @@ class AdvancedAnalysis {
     final message = status == SyncStatus.live
         ? 'Live with Google Health — matching Fitbit cloud feed.'
         : stale
-            ? 'Cloud data looks stale (${lag!.inHours}h lag). Open Fitbit app near your device.'
+            ? 'Cloud data looks stale (${lag.inHours}h lag). Open Fitbit app near your device.'
             : 'Missing $missing of last 7 days. Sync Fitbit app, then pull to refresh.';
 
     return SyncHealth(

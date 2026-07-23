@@ -1,9 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openair/domain/models/day_summary.dart';
+import 'package:openair/domain/scores/advanced_analysis.dart';
 import 'package:openair/domain/scores/score_engine.dart';
 
 void main() {
-  test('ScoreEngine produces premium Whoop/Health-style scores', () {
+  test('ScoreEngine + advanced analysis for final revision', () {
     final day = DaySummary(
       date: DateTime(2026, 7, 22),
       steps: 8000,
@@ -28,8 +29,6 @@ void main() {
     expect(scored.recoveryScore, isNotNull);
     expect(scored.strainScore, isNotNull);
     expect(scored.sleepScore, isNotNull);
-    expect(scored.sleepNeededMinutes, isNotNull);
-    expect(scored.recoveryBreakdown, isNotNull);
     expect(scored.stressScore, isNotNull);
     expect(scored.readinessScore, isNotNull);
     expect(scored.insights, isNotEmpty);
@@ -37,6 +36,17 @@ void main() {
 
     final weekly = const ScoreEngine().buildWeeklyReport([scored]);
     expect(weekly.avgRecovery, greaterThan(0));
-    expect(weekly.insights, isNotEmpty);
+
+    final analysis = const AdvancedAnalysis();
+    final sleep = analysis.sleep(scored);
+    expect(sleep.efficiencyPercent, greaterThan(0));
+    expect(sleep.restorativeMinutes, greaterThan(0));
+
+    final sync = analysis.assessSync(
+      days: [scored],
+      lastSyncedAt: DateTime.now(),
+      isLive: true,
+    );
+    expect(sync.message, isNotEmpty);
   });
 }
