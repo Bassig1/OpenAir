@@ -33,7 +33,12 @@ class DaySummary {
     this.sleepNeededMinutes,
     this.sleepDebtMinutes,
     this.recoveryBreakdown,
+    this.stressScore,
+    this.readinessScore,
+    this.stressManagementScore,
+    this.cardioFitnessScore,
     this.exercises = const [],
+    this.insights = const [],
   });
 
   final DateTime date;
@@ -68,6 +73,11 @@ class DaySummary {
   final int? sleepNeededMinutes;
   final int? sleepDebtMinutes;
   final RecoveryBreakdown? recoveryBreakdown;
+  final double? stressScore;
+  final double? readinessScore;
+  final double? stressManagementScore;
+  final double? cardioFitnessScore;
+  final List<InsightItem> insights;
 
   DaySummary copyWith({
     double? recoveryScore,
@@ -82,6 +92,11 @@ class DaySummary {
     double? totalCalories,
     int? sedentaryMinutes,
     double? skinTempDeviation,
+    double? stressScore,
+    double? readinessScore,
+    double? stressManagementScore,
+    double? cardioFitnessScore,
+    List<InsightItem>? insights,
   }) {
     return DaySummary(
       date: date,
@@ -116,6 +131,12 @@ class DaySummary {
       sleepNeededMinutes: sleepNeededMinutes ?? this.sleepNeededMinutes,
       sleepDebtMinutes: sleepDebtMinutes ?? this.sleepDebtMinutes,
       recoveryBreakdown: recoveryBreakdown ?? this.recoveryBreakdown,
+      stressScore: stressScore ?? this.stressScore,
+      readinessScore: readinessScore ?? this.readinessScore,
+      stressManagementScore:
+          stressManagementScore ?? this.stressManagementScore,
+      cardioFitnessScore: cardioFitnessScore ?? this.cardioFitnessScore,
+      insights: insights ?? this.insights,
     );
   }
 
@@ -123,8 +144,12 @@ class DaySummary {
     return {
       'date': date.toIso8601String().split('T').first,
       'recovery': recoveryScore,
+      'readiness': readinessScore,
       'strain': strainScore,
       'sleepScore': sleepScore,
+      'stress': stressScore,
+      'stressManagement': stressManagementScore,
+      'cardioFitness': cardioFitnessScore,
       'sleepNeededMinutes': sleepNeededMinutes,
       'sleepDebtMinutes': sleepDebtMinutes,
       'steps': steps,
@@ -156,6 +181,7 @@ class DaySummary {
               'peak': heartRateZones!.peakMinutes,
             },
       'exercises': exercises.map((e) => e.toCoachJson()).toList(),
+      'insights': insights.map((i) => {'title': i.title, 'body': i.body}).toList(),
     };
   }
 }
@@ -170,6 +196,6 @@ class MetricSample {
 class ChatMessage {
   const ChatMessage({required this.role, required this.text});
 
-  final String role; // user | assistant
+  final String role;
   final String text;
 }

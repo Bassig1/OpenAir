@@ -43,9 +43,9 @@ class AppShell extends StatelessWidget {
             label: 'Heart',
           ),
           NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'Coach',
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view),
+            label: 'More',
           ),
         ],
       ),

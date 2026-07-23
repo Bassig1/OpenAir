@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/gemini/gemini_coach.dart';
 import '../data/health/demo_health_repository.dart';
 import '../data/health/google_health_client.dart';
+import '../data/local/journal_store.dart';
 import '../data/local/settings_store.dart';
 import '../domain/models/day_summary.dart';
 import '../domain/models/health_extras.dart';
@@ -17,17 +18,20 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     GoogleHealthClient? healthClient,
     ScoreEngine? scoreEngine,
     GeminiCoach? coach,
+    JournalStore? journalStore,
   })  : _settings = settings ?? SettingsStore(),
         _demoRepo = demoRepo ?? DemoHealthRepository(),
         _healthClient = healthClient ?? GoogleHealthClient(),
         _scoreEngine = scoreEngine ?? const ScoreEngine(),
-        _coach = coach ?? GeminiCoach();
+        _coach = coach ?? GeminiCoach(),
+        _journalStore = journalStore ?? JournalStore();
 
   final SettingsStore _settings;
   final DemoHealthRepository _demoRepo;
   final GoogleHealthClient _healthClient;
   final ScoreEngine _scoreEngine;
   final GeminiCoach _coach;
+  final JournalStore _journalStore;
 
   static const livePollInterval = Duration(minutes: 2);
 
@@ -35,6 +39,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   List<ChatMessage> chat = const [];
   List<PairedDeviceInfo> devices = const [];
   BodySnapshot? body;
+  JournalEntry? todayJournal;
   int selectedIndex = 0;
   bool loading = true;
   bool syncing = false;
@@ -58,6 +63,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   DaySummary? get today => days.isEmpty ? null : days.last;
 
   bool get isLive => !useDemoData && googleConnected;
+
+  WeeklyReport get weeklyReport => _scoreEngine.buildWeeklyReport(days);
+
+  List<GuidedProgram> get programs => ScoreEngine.guidedPrograms;
+
+  List<InsightItem> get todaysInsights => selectedDay?.insights ?? const [];
 
   Future<void> bootstrap() async {
     WidgetsBinding.instance.addObserver(this);
@@ -110,6 +121,22 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (days.isEmpty) return;
     selectedIndex = index.clamp(0, days.length - 1);
     notifyListeners();
+    unawaited(_loadJournalForSelected().then((_) => notifyListeners()));
+  }
+
+  Future<void> _loadJournalForSelected() async {
+    final day = selectedDay;
+    if (day == null) {
+      todayJournal = null;
+      return;
+    }
+    todayJournal = await _journalStore.loadForDate(day.date);
+  }
+
+  Future<void> updateJournal(JournalEntry entry) async {
+    await _journalStore.save(entry);
+    todayJournal = entry;
+    notifyListeners();
   }
 
   Future<void> refresh({bool silent = false}) async {
@@ -151,6 +178,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       lastSyncedAt = DateTime.now();
       loading = false;
       errorMessage = null;
+      await _loadJournalForSelected();
     } catch (e) {
       errorMessage = e.toString();
       if (days.isEmpty) {
@@ -162,6 +190,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         useDemoData = true;
       }
       loading = false;
+      await _loadJournalForSelected();
     } finally {
       syncing = false;
       notifyListeners();

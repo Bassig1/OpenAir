@@ -183,6 +183,79 @@ class TodayScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 24),
                         ],
+                        const SectionHeader('Premium live scores'),
+                        const SizedBox(height: 12),
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.35,
+                          children: [
+                            MetricTile(
+                              label: 'Readiness',
+                              value: day.readinessScore?.toStringAsFixed(0) ?? '—',
+                              accent: colors.green,
+                            ),
+                            MetricTile(
+                              label: 'Stress',
+                              value: day.stressScore?.toStringAsFixed(0) ?? '—',
+                              accent: colors.heart,
+                            ),
+                            MetricTile(
+                              label: 'Stress mgmt',
+                              value: day.stressManagementScore?.toStringAsFixed(0) ?? '—',
+                              accent: colors.sleep,
+                            ),
+                            MetricTile(
+                              label: 'Cardio fit',
+                              value: day.cardioFitnessScore?.toStringAsFixed(0) ?? '—',
+                              accent: colors.strain,
+                            ),
+                          ],
+                        ),
+                        if (day.insights.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          SectionHeader(
+                            'Insights',
+                            trailing: TextButton(
+                              onPressed: () => context.push('/insights'),
+                              child: const Text('See all'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            day.insights.first.body,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: colors.textSecondary,
+                                ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ActionChip(
+                              label: const Text('Weekly'),
+                              onPressed: () => context.push('/weekly'),
+                            ),
+                            ActionChip(
+                              label: const Text('Journal'),
+                              onPressed: () => context.push('/journal'),
+                            ),
+                            ActionChip(
+                              label: const Text('Stress'),
+                              onPressed: () => context.push('/stress'),
+                            ),
+                            ActionChip(
+                              label: const Text('Coach'),
+                              onPressed: () => context.push('/coach'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
                         const SectionHeader('Sleep need'),
                         const SizedBox(height: 12),
                         GridView.count(
