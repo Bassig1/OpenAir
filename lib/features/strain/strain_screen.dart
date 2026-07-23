@@ -63,6 +63,21 @@ class StrainScreen extends StatelessWidget {
                 value: '${day.activeMinutes}',
               ),
               MetricTile(
+                label: 'Zone min',
+                value: '${day.zoneMinutes}',
+                accent: OpenAirColors.strain,
+              ),
+              MetricTile(
+                label: 'Distance',
+                value: day.distanceMeters == null
+                    ? '—'
+                    : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
+              ),
+              MetricTile(
+                label: 'Floors',
+                value: day.floors?.toString() ?? '—',
+              ),
+              MetricTile(
                 label: 'Max HR',
                 value: day.maxHeartRate == null
                     ? '—'

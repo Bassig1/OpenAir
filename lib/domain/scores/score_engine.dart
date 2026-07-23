@@ -40,12 +40,14 @@ class ScoreEngine {
 
   double _strainScore(DaySummary day) {
     // 0–21 style scale for familiar UX.
-    final fromMinutes = (day.activeMinutes / 90) * 12;
-    final fromCalories = (day.activeCalories / 700) * 8;
+    final fromMinutes = (day.activeMinutes / 90) * 10;
+    final fromZones = (day.zoneMinutes / 60) * 6;
+    final fromCalories = (day.activeCalories / 700) * 5;
     final fromHr = day.maxHeartRate == null
         ? 0.0
-        : (((day.maxHeartRate! - 100) / 80) * 6).clamp(0.0, 6.0);
-    final score = (fromMinutes + fromCalories + fromHr).clamp(0.0, 21.0);
+        : (((day.maxHeartRate! - 100) / 80) * 5).clamp(0.0, 5.0);
+    final score =
+        (fromMinutes + fromZones + fromCalories + fromHr).clamp(0.0, 21.0);
     return double.parse(score.toStringAsFixed(1));
   }
 

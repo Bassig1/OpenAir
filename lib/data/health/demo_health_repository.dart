@@ -30,8 +30,13 @@ class DemoHealthRepository {
     final rhr = 52 + _random.nextDouble() * 12;
     final hrv = 28 + _random.nextDouble() * 35;
     final spo2 = 95 + _random.nextDouble() * 3.5;
+    final resp = 12 + _random.nextDouble() * 5;
     final avgHr = 68 + _random.nextDouble() * 18;
     final maxHr = 110 + _random.nextDouble() * 55 * weekdayBoost;
+    final distance = steps * (0.72 + _random.nextDouble() * 0.15);
+    final floors = (_random.nextInt(18) * weekdayBoost).round();
+    final zoneMinutes = (activeMinutes * (0.45 + _random.nextDouble() * 0.4))
+        .round();
 
     final heartSamples = List.generate(24, (h) {
       final wobble = sin(h / 3.2) * 8 + _random.nextDouble() * 6;
@@ -53,9 +58,13 @@ class DemoHealthRepository {
       steps: steps,
       activeCalories: double.parse(calories.toStringAsFixed(0)),
       activeMinutes: activeMinutes,
+      zoneMinutes: zoneMinutes,
+      distanceMeters: double.parse(distance.toStringAsFixed(0)),
+      floors: floors,
       restingHeartRate: double.parse(rhr.toStringAsFixed(1)),
       hrvMs: double.parse(hrv.toStringAsFixed(1)),
       spo2Percent: double.parse(spo2.toStringAsFixed(1)),
+      respiratoryRate: double.parse(resp.toStringAsFixed(1)),
       sleepMinutes: sleepMinutes,
       deepSleepMinutes: deep,
       remSleepMinutes: rem,

@@ -16,6 +16,10 @@ class DaySummary {
     required this.maxHeartRate,
     required this.heartSamples,
     required this.spo2Samples,
+    this.zoneMinutes = 0,
+    this.distanceMeters,
+    this.floors,
+    this.respiratoryRate,
     this.recoveryScore,
     this.strainScore,
     this.sleepScore,
@@ -25,9 +29,13 @@ class DaySummary {
   final int steps;
   final double activeCalories;
   final int activeMinutes;
+  final int zoneMinutes;
+  final double? distanceMeters;
+  final int? floors;
   final double? restingHeartRate;
   final double? hrvMs;
   final double? spo2Percent;
+  final double? respiratoryRate;
   final int sleepMinutes;
   final int deepSleepMinutes;
   final int remSleepMinutes;
@@ -51,9 +59,13 @@ class DaySummary {
       steps: steps,
       activeCalories: activeCalories,
       activeMinutes: activeMinutes,
+      zoneMinutes: zoneMinutes,
+      distanceMeters: distanceMeters,
+      floors: floors,
       restingHeartRate: restingHeartRate,
       hrvMs: hrvMs,
       spo2Percent: spo2Percent,
+      respiratoryRate: respiratoryRate,
       sleepMinutes: sleepMinutes,
       deepSleepMinutes: deepSleepMinutes,
       remSleepMinutes: remSleepMinutes,
@@ -78,9 +90,13 @@ class DaySummary {
       'steps': steps,
       'activeCalories': activeCalories,
       'activeMinutes': activeMinutes,
+      'zoneMinutes': zoneMinutes,
+      'distanceMeters': distanceMeters,
+      'floors': floors,
       'restingHeartRate': restingHeartRate,
       'hrvMs': hrvMs,
       'spo2Percent': spo2Percent,
+      'respiratoryRate': respiratoryRate,
       'sleepMinutes': sleepMinutes,
       'deepSleepMinutes': deepSleepMinutes,
       'remSleepMinutes': remSleepMinutes,

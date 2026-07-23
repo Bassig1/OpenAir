@@ -151,6 +151,25 @@ class TodayScreen extends StatelessWidget {
                                   .format(day.steps),
                               accent: OpenAirColors.strain,
                             ),
+                            MetricTile(
+                              label: 'Zone min',
+                              value: '${day.zoneMinutes}',
+                              accent: OpenAirColors.strain,
+                            ),
+                            MetricTile(
+                              label: 'Resp. rate',
+                              value: day.respiratoryRate == null
+                                  ? '—'
+                                  : day.respiratoryRate!.toStringAsFixed(1),
+                              hint: 'br/min',
+                              accent: OpenAirColors.sleep,
+                            ),
+                            MetricTile(
+                              label: 'Distance',
+                              value: day.distanceMeters == null
+                                  ? '—'
+                                  : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),

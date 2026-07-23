@@ -115,6 +115,19 @@ class SleepScreen extends StatelessWidget {
                     : '${day.restingHeartRate!.round()} bpm',
                 accent: OpenAirColors.heart,
               ),
+              MetricTile(
+                label: 'Resp. rate',
+                value: day.respiratoryRate == null
+                    ? '—'
+                    : day.respiratoryRate!.toStringAsFixed(1),
+                hint: 'br/min',
+                accent: OpenAirColors.sleep,
+              ),
+              MetricTile(
+                label: 'HRV',
+                value: day.hrvMs == null ? '—' : '${day.hrvMs!.round()} ms',
+                accent: OpenAirColors.recovery,
+              ),
             ],
           ),
         ],
