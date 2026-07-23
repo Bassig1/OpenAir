@@ -12,7 +12,7 @@ class SleepScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppController>();
-    final day = app.today;
+    final day = app.selectedDay;
     if (day == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -30,6 +30,8 @@ class SleepScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
+          const SizedBox(height: 20),
           Text(
             formatMinutes(day.sleepMinutes),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -37,9 +39,8 @@ class SleepScreen extends StatelessWidget {
                   color: OpenAirColors.sleep,
                 ),
           ),
-          const SizedBox(height: 4),
           Text(
-            'Sleep performance ${day.sleepScore?.toStringAsFixed(0) ?? '—'}',
+            'Performance ${day.sleepScore?.toStringAsFixed(0) ?? '—'}  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? 480)}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: OpenAirColors.textSecondary,
                 ),
@@ -54,7 +55,7 @@ class SleepScreen extends StatelessWidget {
                 sections: [
                   for (final stage in stages)
                     PieChartSectionData(
-                      value: stage.$2.toDouble(),
+                      value: stage.$2.toDouble().clamp(0.1, 100000),
                       color: stage.$3,
                       radius: 28,
                       title: '',
@@ -73,10 +74,7 @@ class SleepScreen extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(
-                      color: stage.$3,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: stage.$3, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text(stage.$1)),
@@ -124,9 +122,11 @@ class SleepScreen extends StatelessWidget {
                 accent: OpenAirColors.sleep,
               ),
               MetricTile(
-                label: 'HRV',
-                value: day.hrvMs == null ? '—' : '${day.hrvMs!.round()} ms',
-                accent: OpenAirColors.recovery,
+                label: 'Skin temp Δ',
+                value: day.skinTempDeviation == null
+                    ? '—'
+                    : '${day.skinTempDeviation!.toStringAsFixed(2)}°',
+                accent: OpenAirColors.strain,
               ),
             ],
           ),

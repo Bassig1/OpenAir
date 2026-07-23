@@ -5,6 +5,7 @@ import '../data/health/demo_health_repository.dart';
 import '../data/health/google_health_client.dart';
 import '../data/local/settings_store.dart';
 import '../domain/models/day_summary.dart';
+import '../domain/models/health_extras.dart';
 import '../domain/scores/score_engine.dart';
 
 class AppController extends ChangeNotifier {
@@ -28,6 +29,9 @@ class AppController extends ChangeNotifier {
 
   List<DaySummary> days = const [];
   List<ChatMessage> chat = const [];
+  List<PairedDeviceInfo> devices = const [];
+  BodySnapshot? body;
+  int selectedIndex = 0;
   bool loading = true;
   bool syncing = false;
   bool useDemoData = true;
@@ -35,6 +39,13 @@ class AppController extends ChangeNotifier {
   String? geminiApiKey;
   String? errorMessage;
   String? accountEmail;
+  DateTime? lastSyncedAt;
+
+  DaySummary? get selectedDay {
+    if (days.isEmpty) return null;
+    final i = selectedIndex.clamp(0, days.length - 1);
+    return days[i];
+  }
 
   DaySummary? get today => days.isEmpty ? null : days.last;
 
@@ -54,11 +65,25 @@ class AppController extends ChangeNotifier {
         accountEmail = silent.email;
         await _settings.setGoogleConnectedFlag(true);
       }
-    } catch (_) {
-      // Silent sign-in is best-effort until Cloud OAuth is configured.
-    }
+    } catch (_) {}
 
     await refresh();
+  }
+
+  void selectDay(int index) {
+    if (days.isEmpty) return;
+    selectedIndex = index.clamp(0, days.length - 1);
+    notifyListeners();
+  }
+
+  void selectDayByDate(DateTime date) {
+    final i = days.indexWhere(
+      (d) =>
+          d.date.year == date.year &&
+          d.date.month == date.month &&
+          d.date.day == date.day,
+    );
+    if (i >= 0) selectDay(i);
   }
 
   Future<void> refresh() async {
@@ -66,16 +91,28 @@ class AppController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
-      final raw = useDemoData || !googleConnected
-          ? await _demoRepo.loadRecentDays()
-          : await _healthClient.fetchRecentDays();
-      days = _scoreEngine.scoreDays(raw);
+      if (useDemoData || !googleConnected) {
+        final bundle = await _demoRepo.loadBundle();
+        days = _scoreEngine.scoreDays(bundle.days);
+        body = bundle.body;
+        devices = bundle.devices;
+      } else {
+        final bundle = await _healthClient.syncRecent();
+        days = _scoreEngine.scoreDays(bundle.days);
+        body = bundle.body;
+        devices = bundle.devices;
+      }
+      selectedIndex = days.isEmpty ? 0 : days.length - 1;
+      lastSyncedAt = DateTime.now();
       loading = false;
     } catch (e) {
       errorMessage = e.toString();
       if (days.isEmpty) {
-        final raw = await _demoRepo.loadRecentDays();
-        days = _scoreEngine.scoreDays(raw);
+        final bundle = await _demoRepo.loadBundle();
+        days = _scoreEngine.scoreDays(bundle.days);
+        body = bundle.body;
+        devices = bundle.devices;
+        selectedIndex = days.length - 1;
         useDemoData = true;
       }
       loading = false;

@@ -12,12 +12,14 @@ void main() {
   setUpAll(() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
-  test('ScoreEngine produces recovery strain sleep', () {
+
+  test('ScoreEngine produces recovery strain sleep and sleep need', () {
     final day = DaySummary(
       date: DateTime(2026, 7, 22),
       steps: 8000,
       activeCalories: 400,
       activeMinutes: 45,
+      zoneMinutes: 30,
       restingHeartRate: 56,
       hrvMs: 42,
       spo2Percent: 97.5,
@@ -36,10 +38,12 @@ void main() {
     expect(scored.recoveryScore, isNotNull);
     expect(scored.strainScore, isNotNull);
     expect(scored.sleepScore, isNotNull);
+    expect(scored.sleepNeededMinutes, isNotNull);
+    expect(scored.recoveryBreakdown, isNotNull);
     expect(scored.strainScore! <= 21, isTrue);
   });
 
-  testWidgets('Today screen shows OpenAir title', (tester) async {
+  testWidgets('Today screen shows OpenAir title and rings', (tester) async {
     final controller = AppController();
     controller.loading = false;
     controller.useDemoData = true;
@@ -49,6 +53,7 @@ void main() {
         steps: 8000,
         activeCalories: 400,
         activeMinutes: 45,
+        zoneMinutes: 30,
         restingHeartRate: 56,
         hrvMs: 42,
         spo2Percent: 97.5,
@@ -63,6 +68,7 @@ void main() {
         spo2Samples: [],
       ),
     ]);
+    controller.selectedIndex = 0;
 
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -76,5 +82,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('OpenAir'), findsOneWidget);
+    expect(find.text('RECOVERY'), findsOneWidget);
+    expect(find.text('Sleep need'), findsOneWidget);
   });
 }

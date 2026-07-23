@@ -13,7 +13,7 @@ class StrainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppController>();
-    final day = app.today;
+    final day = app.selectedDay;
     if (day == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -21,12 +21,15 @@ class StrainScreen extends StatelessWidget {
     final recent = app.days.length > 7
         ? app.days.sublist(app.days.length - 7)
         : app.days;
+    final zones = day.heartRateZones;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Strain')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
+          const SizedBox(height: 20),
           Text(
             (day.strainScore ?? 0).toStringAsFixed(1),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -58,10 +61,7 @@ class StrainScreen extends StatelessWidget {
                 value: '${day.activeCalories.round()}',
                 accent: OpenAirColors.strain,
               ),
-              MetricTile(
-                label: 'Active min',
-                value: '${day.activeMinutes}',
-              ),
+              MetricTile(label: 'Active min', value: '${day.activeMinutes}'),
               MetricTile(
                 label: 'Zone min',
                 value: '${day.zoneMinutes}',
@@ -73,19 +73,57 @@ class StrainScreen extends StatelessWidget {
                     ? '—'
                     : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
               ),
+              MetricTile(label: 'Floors', value: day.floors?.toString() ?? '—'),
               MetricTile(
-                label: 'Floors',
-                value: day.floors?.toString() ?? '—',
+                label: 'Total cal',
+                value: day.totalCalories == null
+                    ? '—'
+                    : '${day.totalCalories!.round()}',
               ),
               MetricTile(
-                label: 'Max HR',
-                value: day.maxHeartRate == null
+                label: 'Sedentary',
+                value: day.sedentaryMinutes == null
                     ? '—'
-                    : '${day.maxHeartRate!.round()} bpm',
-                accent: OpenAirColors.heart,
+                    : formatMinutes(day.sedentaryMinutes!),
               ),
             ],
           ),
+          if (zones != null) ...[
+            const SizedBox(height: 28),
+            const SectionHeader('Heart rate zones'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 3,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.95,
+              children: [
+                MetricTile(
+                  label: 'Fat burn',
+                  value: '${zones.fatBurnMinutes}m',
+                  accent: OpenAirColors.strain,
+                ),
+                MetricTile(
+                  label: 'Cardio',
+                  value: '${zones.cardioMinutes}m',
+                  accent: OpenAirColors.heart,
+                ),
+                MetricTile(
+                  label: 'Peak',
+                  value: '${zones.peakMinutes}m',
+                  accent: const Color(0xFFFF6B6B),
+                ),
+              ],
+            ),
+          ],
+          if (day.exercises.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const SectionHeader('Workouts'),
+            const SizedBox(height: 12),
+            ...day.exercises.map((e) => WorkoutTile(session: e)),
+          ],
           const SizedBox(height: 28),
           const SectionHeader('7-day strain'),
           const SizedBox(height: 16),

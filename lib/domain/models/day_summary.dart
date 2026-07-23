@@ -1,3 +1,5 @@
+import 'health_extras.dart';
+
 class DaySummary {
   const DaySummary({
     required this.date,
@@ -20,22 +22,36 @@ class DaySummary {
     this.distanceMeters,
     this.floors,
     this.respiratoryRate,
+    this.totalCalories,
+    this.sedentaryMinutes,
+    this.skinTempDeviation,
+    this.heartRateZones,
+    this.vo2Max,
     this.recoveryScore,
     this.strainScore,
     this.sleepScore,
+    this.sleepNeededMinutes,
+    this.sleepDebtMinutes,
+    this.recoveryBreakdown,
+    this.exercises = const [],
   });
 
   final DateTime date;
   final int steps;
   final double activeCalories;
+  final double? totalCalories;
   final int activeMinutes;
   final int zoneMinutes;
+  final int? sedentaryMinutes;
   final double? distanceMeters;
   final int? floors;
   final double? restingHeartRate;
   final double? hrvMs;
   final double? spo2Percent;
   final double? respiratoryRate;
+  final double? skinTempDeviation;
+  final HeartRateZones? heartRateZones;
+  final double? vo2Max;
   final int sleepMinutes;
   final int deepSleepMinutes;
   final int remSleepMinutes;
@@ -45,27 +61,45 @@ class DaySummary {
   final double? maxHeartRate;
   final List<MetricSample> heartSamples;
   final List<MetricSample> spo2Samples;
+  final List<ExerciseSession> exercises;
   final double? recoveryScore;
   final double? strainScore;
   final double? sleepScore;
+  final int? sleepNeededMinutes;
+  final int? sleepDebtMinutes;
+  final RecoveryBreakdown? recoveryBreakdown;
 
   DaySummary copyWith({
     double? recoveryScore,
     double? strainScore,
     double? sleepScore,
+    int? sleepNeededMinutes,
+    int? sleepDebtMinutes,
+    RecoveryBreakdown? recoveryBreakdown,
+    List<ExerciseSession>? exercises,
+    HeartRateZones? heartRateZones,
+    double? vo2Max,
+    double? totalCalories,
+    int? sedentaryMinutes,
+    double? skinTempDeviation,
   }) {
     return DaySummary(
       date: date,
       steps: steps,
       activeCalories: activeCalories,
+      totalCalories: totalCalories ?? this.totalCalories,
       activeMinutes: activeMinutes,
       zoneMinutes: zoneMinutes,
+      sedentaryMinutes: sedentaryMinutes ?? this.sedentaryMinutes,
       distanceMeters: distanceMeters,
       floors: floors,
       restingHeartRate: restingHeartRate,
       hrvMs: hrvMs,
       spo2Percent: spo2Percent,
       respiratoryRate: respiratoryRate,
+      skinTempDeviation: skinTempDeviation ?? this.skinTempDeviation,
+      heartRateZones: heartRateZones ?? this.heartRateZones,
+      vo2Max: vo2Max ?? this.vo2Max,
       sleepMinutes: sleepMinutes,
       deepSleepMinutes: deepSleepMinutes,
       remSleepMinutes: remSleepMinutes,
@@ -75,9 +109,13 @@ class DaySummary {
       maxHeartRate: maxHeartRate,
       heartSamples: heartSamples,
       spo2Samples: spo2Samples,
+      exercises: exercises ?? this.exercises,
       recoveryScore: recoveryScore ?? this.recoveryScore,
       strainScore: strainScore ?? this.strainScore,
       sleepScore: sleepScore ?? this.sleepScore,
+      sleepNeededMinutes: sleepNeededMinutes ?? this.sleepNeededMinutes,
+      sleepDebtMinutes: sleepDebtMinutes ?? this.sleepDebtMinutes,
+      recoveryBreakdown: recoveryBreakdown ?? this.recoveryBreakdown,
     );
   }
 
@@ -87,16 +125,22 @@ class DaySummary {
       'recovery': recoveryScore,
       'strain': strainScore,
       'sleepScore': sleepScore,
+      'sleepNeededMinutes': sleepNeededMinutes,
+      'sleepDebtMinutes': sleepDebtMinutes,
       'steps': steps,
       'activeCalories': activeCalories,
+      'totalCalories': totalCalories,
       'activeMinutes': activeMinutes,
       'zoneMinutes': zoneMinutes,
+      'sedentaryMinutes': sedentaryMinutes,
       'distanceMeters': distanceMeters,
       'floors': floors,
       'restingHeartRate': restingHeartRate,
       'hrvMs': hrvMs,
       'spo2Percent': spo2Percent,
       'respiratoryRate': respiratoryRate,
+      'skinTempDeviation': skinTempDeviation,
+      'vo2Max': vo2Max,
       'sleepMinutes': sleepMinutes,
       'deepSleepMinutes': deepSleepMinutes,
       'remSleepMinutes': remSleepMinutes,
@@ -104,6 +148,14 @@ class DaySummary {
       'awakeMinutes': awakeMinutes,
       'avgHeartRate': avgHeartRate,
       'maxHeartRate': maxHeartRate,
+      'heartRateZones': heartRateZones == null
+          ? null
+          : {
+              'fatBurn': heartRateZones!.fatBurnMinutes,
+              'cardio': heartRateZones!.cardioMinutes,
+              'peak': heartRateZones!.peakMinutes,
+            },
+      'exercises': exercises.map((e) => e.toCoachJson()).toList(),
     };
   }
 }

@@ -4,12 +4,25 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 import '../../domain/models/day_summary.dart';
+import '../../domain/models/health_extras.dart';
+
+class HealthSyncResult {
+  const HealthSyncResult({
+    required this.days,
+    this.body,
+    this.devices = const [],
+  });
+
+  final List<DaySummary> days;
+  final BodySnapshot? body;
+  final List<PairedDeviceInfo> devices;
+}
 
 /// Reads Fitbit/Pixel data via Google Health API after OAuth consent.
 ///
 /// Accurate sync path (from Google docs):
 /// Fitbit device → official Fitbit app → Google Health cloud → this client.
-/// Devices cannot talk directly to third-party apps.
+/// Uses wearable-preferring dailyRollUp + filtered list for Fitbit-parity numbers.
 class GoogleHealthClient {
   GoogleHealthClient({
     GoogleSignIn? googleSignIn,
@@ -26,7 +39,6 @@ class GoogleHealthClient {
             );
 
   static const _base = 'https://health.googleapis.com/v4';
-  // Prefer wearable/tracker sources (Fitbit) over mixed manual entries.
   static const _wearablesFamily =
       'users/me/dataSourceFamilies/google-wearables';
 
@@ -49,7 +61,7 @@ class GoogleHealthClient {
     return auth.accessToken;
   }
 
-  Future<List<DaySummary>> fetchRecentDays({int days = 14}) async {
+  Future<HealthSyncResult> syncRecent({int days = 14}) async {
     final token = await _accessToken();
     if (token == null) {
       throw StateError('Not signed in to Google Health');
@@ -66,92 +78,53 @@ class GoogleHealthClient {
         .add(const Duration(days: 1));
     final startDay = endDay.subtract(Duration(days: days));
 
-    // Parallel daily rollups / lists for accurate Fitbit metrics.
     final results = await Future.wait([
       _dailyRollup(headers: headers, dataType: 'steps', start: startDay, end: endDay),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'active-energy-burned',
-        start: startDay,
-        end: endDay,
-      ),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'active-minutes',
-        start: startDay,
-        end: endDay,
-      ),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'active-zone-minutes',
-        start: startDay,
-        end: endDay,
-      ),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'distance',
-        start: startDay,
-        end: endDay,
-      ),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'floors',
-        start: startDay,
-        end: endDay,
-      ),
-      _dailyRollup(
-        headers: headers,
-        dataType: 'heart-rate',
-        start: startDay,
-        end: endDay,
-      ),
-      _listDailySummaries(
-        headers: headers,
-        dataType: 'daily-resting-heart-rate',
-        filterName: 'daily_resting_heart_rate',
-        start: startDay,
-        end: endDay,
-      ),
-      _listDailySummaries(
-        headers: headers,
-        dataType: 'daily-heart-rate-variability',
-        filterName: 'daily_heart_rate_variability',
-        start: startDay,
-        end: endDay,
-      ),
-      _listDailySummaries(
-        headers: headers,
-        dataType: 'daily-oxygen-saturation',
-        filterName: 'daily_oxygen_saturation',
-        start: startDay,
-        end: endDay,
-      ),
-      _listDailySummaries(
-        headers: headers,
-        dataType: 'daily-respiratory-rate',
-        filterName: 'daily_respiratory_rate',
-        start: startDay,
-        end: endDay,
-      ),
+      _dailyRollup(headers: headers, dataType: 'active-energy-burned', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'total-calories', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'active-minutes', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'active-zone-minutes', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'distance', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'floors', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'sedentary-period', start: startDay, end: endDay),
+      _dailyRollup(headers: headers, dataType: 'heart-rate', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-resting-heart-rate', filterName: 'daily_resting_heart_rate', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-heart-rate-variability', filterName: 'daily_heart_rate_variability', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-oxygen-saturation', filterName: 'daily_oxygen_saturation', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-respiratory-rate', filterName: 'daily_respiratory_rate', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-vo2-max', filterName: 'daily_vo2_max', start: startDay, end: endDay),
+      _listDailySummaries(headers: headers, dataType: 'daily-sleep-temperature-derivations', filterName: 'daily_sleep_temperature_derivations', start: startDay, end: endDay),
+      _listHeartRateZones(headers: headers, start: startDay, end: endDay),
       _listSleepSessions(headers: headers, start: startDay, end: endDay),
       _listHeartSamples(headers: headers, start: startDay, end: endDay),
       _listSpo2Samples(headers: headers, start: startDay, end: endDay),
+      _listExercises(headers: headers, start: startDay, end: endDay),
+      _fetchBody(headers: headers),
+      _listPairedDevices(headers: headers),
     ]);
 
     final steps = results[0] as Map<DateTime, double>;
     final activeEnergy = results[1] as Map<DateTime, double>;
-    final activeMinutes = results[2] as Map<DateTime, double>;
-    final zoneMinutes = results[3] as Map<DateTime, double>;
-    final distance = results[4] as Map<DateTime, double>;
-    final floors = results[5] as Map<DateTime, double>;
-    final hrDaily = results[6] as Map<DateTime, double>;
-    final rhr = results[7] as Map<DateTime, double>;
-    final hrv = results[8] as Map<DateTime, double>;
-    final spo2Daily = results[9] as Map<DateTime, double>;
-    final respRate = results[10] as Map<DateTime, double>;
-    final sleepByDay = results[11] as Map<DateTime, _SleepDay>;
-    final heartSamples = results[12] as List<MetricSample>;
-    final spo2Samples = results[13] as List<MetricSample>;
+    final totalCalories = results[2] as Map<DateTime, double>;
+    final activeMinutes = results[3] as Map<DateTime, double>;
+    final zoneMinutes = results[4] as Map<DateTime, double>;
+    final distance = results[5] as Map<DateTime, double>;
+    final floors = results[6] as Map<DateTime, double>;
+    final sedentary = results[7] as Map<DateTime, double>;
+    final hrDaily = results[8] as Map<DateTime, double>;
+    final rhr = results[9] as Map<DateTime, double>;
+    final hrv = results[10] as Map<DateTime, double>;
+    final spo2Daily = results[11] as Map<DateTime, double>;
+    final respRate = results[12] as Map<DateTime, double>;
+    final vo2 = results[13] as Map<DateTime, double>;
+    final skinTemp = results[14] as Map<DateTime, double>;
+    final zonesByDay = results[15] as Map<DateTime, HeartRateZones>;
+    final sleepByDay = results[16] as Map<DateTime, _SleepDay>;
+    final heartSamples = results[17] as List<MetricSample>;
+    final spo2Samples = results[18] as List<MetricSample>;
+    final exercises = results[19] as List<ExerciseSession>;
+    final body = results[20] as BodySnapshot?;
+    final devices = results[21] as List<PairedDeviceInfo>;
 
     final dates = <DateTime>{
       ...steps.keys,
@@ -159,13 +132,11 @@ class GoogleHealthClient {
       ...activeMinutes.keys,
       ...zoneMinutes.keys,
       ...distance.keys,
-      ...floors.keys,
-      ...hrDaily.keys,
       ...rhr.keys,
       ...hrv.keys,
       ...spo2Daily.keys,
-      ...respRate.keys,
       ...sleepByDay.keys,
+      ...exercises.map((e) => DateTime(e.end.year, e.end.month, e.end.day)),
     };
 
     if (dates.isEmpty) {
@@ -175,25 +146,22 @@ class GoogleHealthClient {
     }
 
     final sorted = dates.toList()..sort();
-    return sorted.map((date) {
-      final dayHeart = heartSamples
-          .where((s) => _sameDay(s.time, date))
-          .toList()
+    final daySummaries = sorted.map((date) {
+      final dayHeart = heartSamples.where((s) => _sameDay(s.time, date)).toList()
         ..sort((a, b) => a.time.compareTo(b.time));
-      final daySpo2 = spo2Samples
-          .where((s) => _sameDay(s.time, date))
-          .toList()
+      final daySpo2 = spo2Samples.where((s) => _sameDay(s.time, date)).toList()
         ..sort((a, b) => a.time.compareTo(b.time));
       final sleep = sleepByDay[date];
+      final dayExercises = exercises
+          .where((e) => _sameDay(e.end, date) || _sameDay(e.start, date))
+          .toList();
 
       final avgHr = dayHeart.isEmpty
           ? hrDaily[date]
-          : dayHeart.map((e) => e.value).reduce((a, b) => a + b) /
-              dayHeart.length;
+          : dayHeart.map((e) => e.value).reduce((a, b) => a + b) / dayHeart.length;
       final maxHr = dayHeart.isEmpty
           ? null
           : dayHeart.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-
       final spo2 = spo2Daily[date] ??
           (daySpo2.isEmpty
               ? null
@@ -204,14 +172,19 @@ class GoogleHealthClient {
         date: date,
         steps: (steps[date] ?? 0).round(),
         activeCalories: activeEnergy[date] ?? 0,
+        totalCalories: totalCalories[date],
         activeMinutes: (activeMinutes[date] ?? 0).round(),
         zoneMinutes: (zoneMinutes[date] ?? 0).round(),
+        sedentaryMinutes: sedentary[date]?.round(),
         distanceMeters: distance[date],
         floors: floors[date]?.round(),
         restingHeartRate: rhr[date],
         hrvMs: hrv[date],
         spo2Percent: spo2,
         respiratoryRate: respRate[date],
+        skinTempDeviation: skinTemp[date],
+        vo2Max: vo2[date],
+        heartRateZones: zonesByDay[date],
         sleepMinutes: sleep?.totalMinutes ?? 0,
         deepSleepMinutes: sleep?.deepMinutes ?? 0,
         remSleepMinutes: sleep?.remMinutes ?? 0,
@@ -221,8 +194,21 @@ class GoogleHealthClient {
         maxHeartRate: maxHr,
         heartSamples: dayHeart,
         spo2Samples: daySpo2,
+        exercises: dayExercises,
       );
     }).toList();
+
+    return HealthSyncResult(
+      days: daySummaries,
+      body: body,
+      devices: devices,
+    );
+  }
+
+  @Deprecated('Use syncRecent')
+  Future<List<DaySummary>> fetchRecentDays({int days = 14}) async {
+    final result = await syncRecent(days: days);
+    return result.days;
   }
 
   Future<Map<DateTime, double>> _dailyRollup({
@@ -294,6 +280,15 @@ class GoogleHealthClient {
               'energyKilocaloriesSum',
             ]) ??
             _numAt(point['activeEnergyBurned'], ['sum']);
+      case 'total-calories':
+        return _numAt(point['totalCalories'], [
+          'kilocaloriesSum',
+          'kilocalories_sum',
+          'sum',
+        ]);
+      case 'sedentary-period':
+        return _durationMinutes(point['sedentaryPeriod']) ??
+            _numAt(point['sedentaryPeriod'], ['minutesSum', 'minutes_sum', 'sum']);
       case 'active-minutes':
         return _durationMinutes(point['activeMinutes']) ??
             _numAt(point['activeMinutes'], ['minutesSum', 'minutes_sum', 'sum']);
@@ -402,9 +397,211 @@ class GoogleHealthClient {
           'respiratoryRate',
           'average',
         ]);
+      case 'daily-vo2-max':
+        return _numAt(map, [
+          'vo2Max',
+          'millilitersPerMinutePerKilogram',
+          'value',
+        ]);
+      case 'daily-sleep-temperature-derivations':
+        return _numAt(map, [
+          'temperatureDeviationCelsius',
+          'deviationCelsius',
+          'relativeSkinTemperatureCelsius',
+          'value',
+        ]);
       default:
         return _firstNumeric(map);
     }
+  }
+
+  Future<Map<DateTime, HeartRateZones>> _listHeartRateZones({
+    required Map<String, String> headers,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final filter =
+        'daily_heart_rate_zones.date >= "${_ymd(start)}" AND daily_heart_rate_zones.date < "${_ymd(end)}"';
+    final uri = Uri.parse(
+      '$_base/users/me/dataTypes/daily-heart-rate-zones/dataPoints',
+    ).replace(queryParameters: {'filter': filter, 'pageSize': '100'});
+    final response = await _http.get(uri, headers: headers);
+    if (response.statusCode >= 400) return {};
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final points = (body['dataPoints'] as List<dynamic>? ?? const []);
+    final out = <DateTime, HeartRateZones>{};
+    for (final raw in points) {
+      final point = raw as Map<String, dynamic>;
+      final date = _dateFromPoint(point) ?? _dateFromCivil(point['date'] as Map?);
+      if (date == null) continue;
+      final zones = point['dailyHeartRateZones'] as Map<String, dynamic>? ??
+          point['value'] as Map<String, dynamic>? ??
+          point;
+      out[date] = HeartRateZones(
+        outOfRangeMinutes: _zoneMinutes(zones, const [
+          'outOfRangeMinutes',
+          'belowMinutes',
+          'outOfZoneMinutes',
+        ]),
+        fatBurnMinutes: _zoneMinutes(zones, const [
+          'fatBurnMinutes',
+          'fatBurnZoneMinutes',
+          'lightMinutes',
+        ]),
+        cardioMinutes: _zoneMinutes(zones, const [
+          'cardioMinutes',
+          'cardioZoneMinutes',
+          'moderateMinutes',
+        ]),
+        peakMinutes: _zoneMinutes(zones, const [
+          'peakMinutes',
+          'peakZoneMinutes',
+          'vigorousMinutes',
+        ]),
+      );
+    }
+    return out;
+  }
+
+  int _zoneMinutes(Map<String, dynamic> map, List<String> keys) {
+    final v = _numAt(map, keys);
+    return v?.round() ?? 0;
+  }
+
+  Future<List<ExerciseSession>> _listExercises({
+    required Map<String, String> headers,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final filter =
+        'exercise.interval.civil_start_time >= "${_ymd(start)}" '
+        'AND exercise.interval.civil_start_time < "${_ymd(end)}"';
+    final uri = Uri.parse('$_base/users/me/dataTypes/exercise/dataPoints')
+        .replace(queryParameters: {'filter': filter, 'pageSize': '25'});
+    final response = await _http.get(uri, headers: headers);
+    if (response.statusCode >= 400) return [];
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final points = (body['dataPoints'] as List<dynamic>? ?? const []);
+    final out = <ExerciseSession>[];
+    for (final raw in points) {
+      final point = raw as Map<String, dynamic>;
+      final exercise = point['exercise'] as Map<String, dynamic>? ?? point;
+      final interval = exercise['interval'] as Map<String, dynamic>? ?? {};
+      final startTime =
+          DateTime.tryParse('${interval['startTime']}')?.toLocal() ??
+              _dateFromCivil(interval['civilStartTime'] as Map?);
+      final endTime = DateTime.tryParse('${interval['endTime']}')?.toLocal() ??
+          _dateFromCivil(interval['civilEndTime'] as Map?) ??
+          startTime;
+      if (startTime == null || endTime == null) continue;
+      final name = '${exercise['activityName'] ?? exercise['name'] ?? exercise['type'] ?? 'Workout'}';
+      out.add(
+        ExerciseSession(
+          id: '${point['name'] ?? startTime.millisecondsSinceEpoch}',
+          name: name,
+          start: startTime,
+          end: endTime,
+          calories: _numAt(exercise, const [
+            'calories',
+            'activeEnergyKilocalories',
+            'kilocalories',
+          ]),
+          distanceMeters: () {
+            final mm = _numAt(exercise, const [
+              'distanceMillimeters',
+              'distance_mm',
+            ]);
+            if (mm != null) return mm / 1000.0;
+            return _numAt(exercise, const ['distanceMeters', 'distance']);
+          }(),
+          avgHeartRate: _numAt(exercise, const [
+            'averageHeartRate',
+            'avgHeartRate',
+            'beatsPerMinuteAverage',
+          ]),
+          maxHeartRate: _numAt(exercise, const [
+            'maxHeartRate',
+            'maximumHeartRate',
+            'beatsPerMinuteMax',
+          ]),
+          steps: _numAt(exercise, const ['steps', 'stepCount'])?.round(),
+        ),
+      );
+    }
+    return out;
+  }
+
+  Future<BodySnapshot?> _fetchBody({
+    required Map<String, String> headers,
+  }) async {
+    final now = DateTime.now();
+    final start = now.subtract(const Duration(days: 90));
+    final weight = await _latestSample(
+      headers: headers,
+      dataType: 'weight',
+      filter:
+          'weight.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
+      keys: const ['weightKilograms', 'kilograms', 'value'],
+    );
+    final fat = await _latestSample(
+      headers: headers,
+      dataType: 'body-fat',
+      filter:
+          'body_fat.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
+      keys: const ['percentage', 'bodyFatPercentage', 'value'],
+    );
+    final height = await _latestSample(
+      headers: headers,
+      dataType: 'height',
+      filter:
+          'height.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
+      keys: const ['heightMeters', 'meters', 'value'],
+    );
+    if (weight == null && fat == null && height == null) return null;
+    return BodySnapshot(
+      weightKg: weight?.value,
+      bodyFatPercent: fat?.value,
+      heightCm: height == null ? null : height.value * 100,
+      measuredAt: weight?.time ?? fat?.time ?? height?.time,
+    );
+  }
+
+  Future<MetricSample?> _latestSample({
+    required Map<String, String> headers,
+    required String dataType,
+    required String filter,
+    required List<String> keys,
+  }) async {
+    final samples = await _listSamples(
+      headers: headers,
+      dataType: dataType,
+      filter: filter,
+      valueKeys: keys,
+    );
+    if (samples.isEmpty) return null;
+    samples.sort((a, b) => b.time.compareTo(a.time));
+    return samples.first;
+  }
+
+  Future<List<PairedDeviceInfo>> _listPairedDevices({
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_base/users/me/pairedDevices');
+    final response = await _http.get(uri, headers: headers);
+    if (response.statusCode >= 400) return [];
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final devices = (body['pairedDevices'] as List<dynamic>? ??
+        body['devices'] as List<dynamic>? ??
+        const []);
+    return devices.map((raw) {
+      final d = raw as Map<String, dynamic>;
+      return PairedDeviceInfo(
+        id: '${d['name'] ?? d['id'] ?? d.hashCode}',
+        name: '${d['displayName'] ?? d['name'] ?? 'Fitbit'}',
+        model: d['model']?.toString() ?? d['productName']?.toString(),
+        lastSync: DateTime.tryParse('${d['lastSyncTime'] ?? d['updateTime']}'),
+      );
+    }).toList();
   }
 
   Future<Map<DateTime, _SleepDay>> _listSleepSessions({

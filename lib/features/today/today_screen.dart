@@ -13,7 +13,7 @@ class TodayScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppController>();
-    final day = app.today;
+    final day = app.selectedDay;
 
     return RefreshIndicator(
       color: OpenAirColors.recovery,
@@ -21,23 +21,7 @@ class TodayScreen extends StatelessWidget {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            pinned: true,
-            title: const Text('OpenAir'),
-            actions: [
-              if (app.syncing)
-                const Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Center(
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          const SliverAppBar(pinned: true, title: Text('OpenAir')),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
@@ -51,10 +35,9 @@ class TodayScreen extends StatelessWidget {
                       children: [
                         Text(
                           DateFormat('EEEE, MMM d').format(day.date),
-                          style:
-                              Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: OpenAirColors.textSecondary,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: OpenAirColors.textSecondary,
+                              ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -67,12 +50,11 @@ class TodayScreen extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(
                           app.useDemoData
-                              ? 'Demo data — connect Google Health in Settings for your Fitbit.'
-                              : 'Synced from Google Health (Fitbit cloud).',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: OpenAirColors.textMuted,
-                                  ),
+                              ? 'Demo data — connect Google Health in Settings for live Fitbit numbers.'
+                              : 'Live Fitbit cloud data via Google Health${app.lastSyncedAt == null ? '' : ' · synced ${DateFormat.jm().format(app.lastSyncedAt!)}'}.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: OpenAirColors.textMuted,
+                              ),
                         ),
                         if (app.errorMessage != null) ...[
                           const SizedBox(height: 12),
@@ -84,6 +66,12 @@ class TodayScreen extends StatelessWidget {
                                 ?.copyWith(color: OpenAirColors.heart),
                           ),
                         ],
+                        const SizedBox(height: 22),
+                        DayStrip(
+                          days: app.days,
+                          selected: day,
+                          onSelected: app.selectDay,
+                        ),
                         const SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -112,9 +100,73 @@ class TodayScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 28),
-                        DayStrip(days: app.days, selected: day),
+                        if (day.recoveryBreakdown != null) ...[
+                          const SectionHeader('Recovery breakdown'),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: OpenAirColors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: OpenAirColors.border),
+                            ),
+                            child: Column(
+                              children: [
+                                ContributionBar(
+                                  label: 'Sleep',
+                                  value: day.recoveryBreakdown!.sleepContribution,
+                                  color: OpenAirColors.sleep,
+                                ),
+                                ContributionBar(
+                                  label: 'HRV',
+                                  value: day.recoveryBreakdown!.hrvContribution,
+                                  color: OpenAirColors.recovery,
+                                ),
+                                ContributionBar(
+                                  label: 'Resting HR',
+                                  value: day.recoveryBreakdown!.rhrContribution,
+                                  color: OpenAirColors.heart,
+                                ),
+                                ContributionBar(
+                                  label: 'SpO₂',
+                                  value: day.recoveryBreakdown!.spo2Contribution,
+                                  color: OpenAirColors.spo2,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                        const SectionHeader('Sleep need'),
+                        const SizedBox(height: 12),
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.35,
+                          children: [
+                            MetricTile(
+                              label: 'Needed',
+                              value: formatMinutes(day.sleepNeededMinutes ?? 480),
+                              accent: OpenAirColors.sleep,
+                            ),
+                            MetricTile(
+                              label: 'Debt',
+                              value: formatMinutes(
+                                (day.sleepDebtMinutes ?? 0).abs(),
+                              ),
+                              hint: (day.sleepDebtMinutes ?? 0) >= 0
+                                  ? 'behind'
+                                  : 'ahead',
+                              accent: OpenAirColors.strain,
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 24),
-                        const SectionHeader('Today at a glance'),
+                        const SectionHeader('At a glance'),
                         const SizedBox(height: 12),
                         GridView.count(
                           shrinkWrap: true,
@@ -147,8 +199,7 @@ class TodayScreen extends StatelessWidget {
                             ),
                             MetricTile(
                               label: 'Steps',
-                              value: NumberFormat.decimalPattern()
-                                  .format(day.steps),
+                              value: NumberFormat.decimalPattern().format(day.steps),
                               accent: OpenAirColors.strain,
                             ),
                             MetricTile(
@@ -164,33 +215,22 @@ class TodayScreen extends StatelessWidget {
                               hint: 'br/min',
                               accent: OpenAirColors.sleep,
                             ),
-                            MetricTile(
-                              label: 'Distance',
-                              value: day.distanceMeters == null
-                                  ? '—'
-                                  : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
-                            ),
                           ],
                         ),
+                        if (day.exercises.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          const SectionHeader('Workouts'),
+                          const SizedBox(height: 12),
+                          ...day.exercises.map((e) => WorkoutTile(session: e)),
+                        ],
                         const SizedBox(height: 20),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: OpenAirColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: OpenAirColors.border),
-                          ),
-                          child: Text(
-                            'OpenAir scores are transparent heuristics from sleep, HRV, '
-                            'resting heart rate, SpO₂, and activity — inspired by Whoop-style '
-                            'UX, not Whoop’s proprietary model.',
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: OpenAirColors.textSecondary,
-                                      height: 1.4,
-                                    ),
-                          ),
+                        Text(
+                          'OpenAir scores are transparent heuristics from Fitbit cloud metrics. '
+                          'Raw vitals aim to match Google Health / Fitbit reconciled wearable data.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: OpenAirColors.textSecondary,
+                                height: 1.4,
+                              ),
                         ),
                       ],
                     ),

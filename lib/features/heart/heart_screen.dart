@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_controller.dart';
@@ -12,18 +13,21 @@ class HeartScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppController>();
-    final day = app.today;
+    final day = app.selectedDay;
     if (day == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final samples = day.heartSamples;
+    final body = app.body;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Heart')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
+          const SizedBox(height: 20),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -61,8 +65,62 @@ class HeartScreen extends StatelessWidget {
                 hint: '%',
                 accent: OpenAirColors.spo2,
               ),
+              MetricTile(
+                label: 'VO₂ max',
+                value: day.vo2Max == null
+                    ? (body?.vo2Max == null
+                        ? '—'
+                        : body!.vo2Max!.toStringAsFixed(1))
+                    : day.vo2Max!.toStringAsFixed(1),
+                accent: OpenAirColors.recovery,
+              ),
+              MetricTile(
+                label: 'Max HR',
+                value: day.maxHeartRate == null
+                    ? '—'
+                    : '${day.maxHeartRate!.round()}',
+                hint: 'bpm',
+                accent: OpenAirColors.heart,
+              ),
             ],
           ),
+          if (body != null) ...[
+            const SizedBox(height: 28),
+            const SectionHeader('Body'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                MetricTile(
+                  label: 'Weight',
+                  value: body.weightKg == null
+                      ? '—'
+                      : '${body.weightKg!.toStringAsFixed(1)} kg',
+                ),
+                MetricTile(
+                  label: 'Body fat',
+                  value: body.bodyFatPercent == null
+                      ? '—'
+                      : '${body.bodyFatPercent!.toStringAsFixed(1)}%',
+                ),
+              ],
+            ),
+            if (body.measuredAt != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Measured ${DateFormat.yMMMd().format(body.measuredAt!)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: OpenAirColors.textMuted,
+                      ),
+                ),
+              ),
+          ],
           const SizedBox(height: 28),
           const SectionHeader('Heart rate today'),
           const SizedBox(height: 16),

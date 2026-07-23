@@ -79,6 +79,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Connect'),
                   ),
           ),
+          if (app.devices.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Paired devices',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            ...app.devices.map(
+              (d) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.watch),
+                title: Text(d.name),
+                subtitle: Text(d.model ?? 'Fitbit / Google wearable'),
+              ),
+            ),
+          ],
+          if (app.lastSyncedAt != null)
+            Text(
+              'Last sync: ${app.lastSyncedAt}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: OpenAirColors.textMuted,
+                  ),
+            ),
           const Divider(height: 36),
           Text(
             'Gemini Coach',
