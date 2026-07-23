@@ -8,10 +8,10 @@ import '../../domain/models/health_extras.dart';
 /// Persists the last successful Google Health snapshot so the app opens with
 /// real summaries immediately (no demo data, no forced reconnect).
 class HealthCacheStore {
-  static const _daysKey = 'health_cache_days_v1';
-  static const _bodyKey = 'health_cache_body_v1';
-  static const _devicesKey = 'health_cache_devices_v1';
-  static const _syncedKey = 'health_cache_synced_at_v1';
+  static const _daysKey = 'health_cache_days_v3';
+  static const _bodyKey = 'health_cache_body_v3';
+  static const _devicesKey = 'health_cache_devices_v3';
+  static const _syncedKey = 'health_cache_synced_at_v3';
 
   Future<CachedHealthBundle?> load() async {
     final prefs = await SharedPreferences.getInstance();

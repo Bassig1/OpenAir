@@ -34,6 +34,13 @@ migrate_working_dir/
 /coverage/
 oauth_web_client_id.txt
 
+# Private health dumps for Cursor review
+/diagnostics/*.json
+!/diagnostics/README.md
+/tool/oauth_client.json
+/tool/client_secret.json
+
+
 # Symbolication related
 app.*.symbols
 

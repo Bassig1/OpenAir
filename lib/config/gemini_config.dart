@@ -9,5 +9,13 @@ class GeminiConfig {
   /// Generative Language API key for project YOUR_GCP_PROJECT.
   static const defaultApiKey = 'REDACTED_GEMINI_KEY';
 
-  static const modelName = 'gemini-2.0-flash';
+  /// Prefer alias models that route to available capacity; fall back on 429/404.
+  static const modelName = 'gemini-flash-latest';
+
+  static const modelFallbacks = <String>[
+    'gemini-flash-latest',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+  ];
 }

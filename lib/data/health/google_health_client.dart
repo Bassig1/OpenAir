@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../config/oauth_config.dart';
 import '../../domain/models/day_summary.dart';
 import '../../domain/models/health_extras.dart';
+import 'sleep_stage_math.dart';
 
 class HealthSyncResult {
   const HealthSyncResult({
@@ -283,11 +284,13 @@ class GoogleHealthClient {
       final maxHr = dayHeart.isEmpty
           ? null
           : dayHeart.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-      final spo2 = spo2Daily[date] ??
+      final spo2 = _normalizeSpo2(spo2Daily[date]) ??
           (daySpo2.isEmpty
               ? null
-              : daySpo2.map((e) => e.value).reduce((a, b) => a + b) /
-                  daySpo2.length);
+              : _normalizeSpo2(
+                  daySpo2.map((e) => e.value).reduce((a, b) => a + b) /
+                      daySpo2.length,
+                ));
 
       return DaySummary(
         date: date,
@@ -496,32 +499,97 @@ class GoogleHealthClient {
     final endStr = _ymd(end);
     final filter =
         '$filterName.date >= "$startStr" AND $filterName.date < "$endStr"';
-    final uri = Uri.parse(
-      '$_base/users/me/dataTypes/$dataType/dataPoints',
-    ).replace(queryParameters: {
-      'filter': filter,
-      'pageSize': '100',
-    });
 
-    final response = await _timedGet(uri, headers: headers);
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw HttpException(
-        'Health API auth failed (${response.statusCode}). Reconnect Google Health.',
+    // Same path the Google Health app uses: wearable-reconciled stream first.
+    final reconciled = await _listDataPointsPaged(
+      headers: headers,
+      dataType: dataType,
+      filter: filter,
+      pageSize: '100',
+      maxPages: 5,
+      reconcileWearables: true,
+    );
+    var out = _mapDailySummaries(reconciled, dataType);
+    if (out.isEmpty) {
+      final plain = await _listDataPointsPaged(
+        headers: headers,
+        dataType: dataType,
+        filter: filter,
+        pageSize: '100',
+        maxPages: 5,
+        reconcileWearables: false,
       );
+      out = _mapDailySummaries(plain, dataType);
     }
-    if (response.statusCode >= 400) return {};
+    return out;
+  }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final points = (body['dataPoints'] as List<dynamic>? ?? const []);
+  Map<DateTime, double> _mapDailySummaries(
+    List<Map<String, dynamic>> points,
+    String dataType,
+  ) {
     final out = <DateTime, double>{};
-
-    for (final raw in points) {
-      final point = raw as Map<String, dynamic>;
-      final date = _dateFromPoint(point) ?? _dateFromCivil(point['date'] as Map?);
+    for (final point in points) {
+      DateTime? date = _dateFromPoint(point);
+      if (date == null) {
+        final nested = point[_camel(dataType)];
+        if (nested is Map) {
+          date = _dateFromCivil(nested['date'] as Map?);
+        }
+      }
+      date ??= _dateFromCivil(point['date'] as Map?);
       if (date == null) continue;
       final value = _extractDailySummary(point, dataType);
       if (value != null) out[date] = value;
     }
+    return out;
+  }
+
+  Future<List<Map<String, dynamic>>> _listDataPointsPaged({
+    required Map<String, String> headers,
+    required String dataType,
+    required String filter,
+    required String pageSize,
+    required int maxPages,
+    required bool reconcileWearables,
+  }) async {
+    final out = <Map<String, dynamic>>[];
+    String? pageToken;
+    var pages = 0;
+    final path = reconcileWearables
+        ? '$_base/users/me/dataTypes/$dataType/dataPoints:reconcile'
+        : '$_base/users/me/dataTypes/$dataType/dataPoints';
+
+    do {
+      final params = <String, String>{
+        'filter': filter,
+        'pageSize': pageSize,
+      };
+      if (reconcileWearables) {
+        params['dataSourceFamily'] = _wearablesFamily;
+      }
+      if (pageToken != null) params['pageToken'] = pageToken;
+
+      final uri = Uri.parse(path).replace(queryParameters: params);
+      final response = await _timedGet(uri, headers: headers);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw HttpException(
+          'Health API auth failed (${response.statusCode}). Reconnect Google Health.',
+        );
+      }
+      if (response.statusCode >= 400) break;
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final points = (body['dataPoints'] as List<dynamic>? ?? const []);
+      for (final raw in points) {
+        out.add(Map<String, dynamic>.from(raw as Map));
+      }
+      pageToken = body['nextPageToken'] as String?;
+      if (pageToken != null && pageToken.isEmpty) pageToken = null;
+      pages++;
+      if (pages >= maxPages) break;
+    } while (pageToken != null);
+
     return out;
   }
 
@@ -556,12 +624,16 @@ class GoogleHealthClient {
               'averageHeartRateVariabilityMillisecondsMax',
             );
       case 'daily-oxygen-saturation':
-        return _numAt(map, [
-          'saturationPercentage',
-          'oxygenSaturationPercentage',
-          'percentage',
-          'average',
-        ]);
+        // API field is averagePercentage (0–100), not saturationPercentage.
+        return _normalizeSpo2(
+          _numAt(map, [
+            'averagePercentage',
+            'saturationPercentage',
+            'oxygenSaturationPercentage',
+            'percentage',
+            'average',
+          ]),
+        );
       case 'daily-respiratory-rate':
         return _numAt(map, [
           'breathsPerMinute',
@@ -724,79 +796,276 @@ class GoogleHealthClient {
     return out;
   }
 
+  /// Public entry so Profile can refresh body without a full day sync.
+  Future<BodySnapshot?> fetchLatestBody() async {
+    final token = await _accessToken();
+    if (token == null) {
+      throw StateError('Not signed in to Google Health');
+    }
+    return _fetchBody(headers: {
+      'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+    });
+  }
+
+  /// Truncated raw Google Health payloads for Cursor diagnostics (no secrets).
+  Future<Map<String, dynamic>> fetchDiagnosticRaw() async {
+    final token = await _accessToken();
+    if (token == null) {
+      throw StateError('Not signed in to Google Health');
+    }
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+    };
+    final now = DateTime.now().toUtc();
+    final start = now.subtract(const Duration(days: 14));
+    final end = now.add(const Duration(days: 1));
+    final civilStart = DateTime.now().subtract(const Duration(days: 14));
+    final civilEnd = DateTime.now().add(const Duration(days: 1));
+
+    Future<Map<String, dynamic>> snap(
+      String label,
+      String dataType,
+      String filter, {
+      String pageSize = '5',
+      bool reconcile = false,
+    }) async {
+      final path = reconcile
+          ? '$_base/users/me/dataTypes/$dataType/dataPoints:reconcile'
+          : '$_base/users/me/dataTypes/$dataType/dataPoints';
+      final params = <String, String>{
+        'filter': filter,
+        'pageSize': pageSize,
+      };
+      if (reconcile) params['dataSourceFamily'] = _wearablesFamily;
+      final uri = Uri.parse(path).replace(queryParameters: params);
+      try {
+        final response = await _timedGet(uri, headers: headers);
+        final decoded = response.statusCode < 400
+            ? jsonDecode(response.body)
+            : {'error': response.body};
+        return {
+          'status': response.statusCode,
+          'dataType': dataType,
+          'reconcile': reconcile,
+          'body': _truncateJson(decoded, maxPoints: 3),
+        };
+      } catch (e) {
+        return {'status': 'error', 'dataType': dataType, 'error': '$e'};
+      }
+    }
+
+    final weightStart = now.subtract(const Duration(days: 365));
+    return {
+      'capturedAt': DateTime.now().toIso8601String(),
+      'samples': {
+        'weight': await snap(
+          'weight',
+          'weight',
+          'weight.sample_time.physical_time >= "${weightStart.toIso8601String()}" '
+              'AND weight.sample_time.physical_time < "${end.toIso8601String()}"',
+        ),
+        'height': await snap(
+          'height',
+          'height',
+          'height.sample_time.physical_time >= "${weightStart.toIso8601String()}" '
+              'AND height.sample_time.physical_time < "${end.toIso8601String()}"',
+        ),
+        'bodyFat': await snap(
+          'body-fat',
+          'body-fat',
+          'body_fat.sample_time.physical_time >= "${weightStart.toIso8601String()}" '
+              'AND body_fat.sample_time.physical_time < "${end.toIso8601String()}"',
+        ),
+        'sleep': await snap(
+          'sleep',
+          'sleep',
+          'sleep.interval.civil_end_time >= "${_ymd(civilStart)}" '
+              'AND sleep.interval.civil_end_time < "${_ymd(civilEnd)}"',
+          pageSize: '3',
+          reconcile: true,
+        ),
+        'dailyOxygen': await snap(
+          'daily-oxygen-saturation',
+          'daily-oxygen-saturation',
+          'daily_oxygen_saturation.date >= "${_ymd(civilStart)}" '
+              'AND daily_oxygen_saturation.date < "${_ymd(civilEnd)}"',
+          pageSize: '7',
+        ),
+        'oxygenSamples': await snap(
+          'oxygen-saturation',
+          'oxygen-saturation',
+          'oxygen_saturation.sample_time.physical_time >= "${start.toIso8601String()}" '
+              'AND oxygen_saturation.sample_time.physical_time < "${end.toIso8601String()}"',
+          pageSize: '10',
+        ),
+        'dailyHrv': await snap(
+          'daily-heart-rate-variability',
+          'daily-heart-rate-variability',
+          'daily_heart_rate_variability.date >= "${_ymd(civilStart)}" '
+              'AND daily_heart_rate_variability.date < "${_ymd(civilEnd)}"',
+          pageSize: '7',
+        ),
+        'dailyRhr': await snap(
+          'daily-resting-heart-rate',
+          'daily-resting-heart-rate',
+          'daily_resting_heart_rate.date >= "${_ymd(civilStart)}" '
+              'AND daily_resting_heart_rate.date < "${_ymd(civilEnd)}"',
+          pageSize: '7',
+        ),
+      },
+    };
+  }
+
+  dynamic _truncateJson(dynamic node, {int maxPoints = 3}) {
+    if (node is Map) {
+      final map = Map<String, dynamic>.from(node);
+      final points = map['dataPoints'];
+      if (points is List && points.length > maxPoints) {
+        map['dataPoints'] = points.take(maxPoints).toList();
+        map['_truncatedNote'] =
+            'Showing $maxPoints of ${points.length} dataPoints';
+      }
+      return map;
+    }
+    return node;
+  }
+
   Future<BodySnapshot?> _fetchBody({
     required Map<String, String> headers,
   }) async {
     final now = DateTime.now().toUtc();
-    final start = now.subtract(const Duration(days: 90));
+    final start = now.subtract(const Duration(days: 365));
     final end = now.add(const Duration(days: 1));
-    final weight = await _latestSample(
+
+    // Google Health schema: weightGrams, heightMillimeters, bodyFat.percentage.
+    final weightPoint = await _latestDataPoint(
       headers: headers,
       dataType: 'weight',
       filter:
           'weight.sample_time.physical_time >= "${start.toIso8601String()}" '
           'AND weight.sample_time.physical_time < "${end.toIso8601String()}"',
-      keys: const [
-        'weightKilograms',
-        'kilograms',
-        'weightPounds',
-        'pounds',
-        'value',
-      ],
     );
-    final fat = await _latestSample(
+    final fatPoint = await _latestDataPoint(
       headers: headers,
       dataType: 'body-fat',
       filter:
           'body_fat.sample_time.physical_time >= "${start.toIso8601String()}" '
           'AND body_fat.sample_time.physical_time < "${end.toIso8601String()}"',
-      keys: const ['percentage', 'bodyFatPercentage', 'value'],
     );
-    final height = await _latestSample(
+    final heightPoint = await _latestDataPoint(
       headers: headers,
       dataType: 'height',
       filter:
           'height.sample_time.physical_time >= "${start.toIso8601String()}" '
           'AND height.sample_time.physical_time < "${end.toIso8601String()}"',
-      keys: const ['heightMeters', 'meters', 'inches', 'value'],
     );
-    if (weight == null && fat == null && height == null) return null;
 
-    double? heightCm;
-    if (height != null) {
-      final v = height.value;
-      if (v < 3.5) {
-        heightCm = v * 100; // meters
-      } else if (v < 100) {
-        heightCm = v * 2.54; // inches
-      } else {
-        heightCm = v; // centimeters
-      }
-    }
+    final weightKg = _parseWeightKg(weightPoint);
+    final heightCm = _parseHeightCm(heightPoint);
+    final fat = _parseBodyFatPercent(fatPoint);
+    if (weightKg == null && fat == null && heightCm == null) return null;
 
     return BodySnapshot(
-      weightKg: weight?.value,
-      bodyFatPercent: fat?.value,
+      weightKg: weightKg,
+      bodyFatPercent: fat,
       heightCm: heightCm,
-      measuredAt: weight?.time ?? fat?.time ?? height?.time,
+      measuredAt: _sampleTime(weightPoint ?? {}, dataType: 'weight') ??
+          _sampleTime(fatPoint ?? {}, dataType: 'body-fat') ??
+          _sampleTime(heightPoint ?? {}, dataType: 'height'),
     );
   }
 
-  Future<MetricSample?> _latestSample({
+  Future<Map<String, dynamic>?> _latestDataPoint({
     required Map<String, String> headers,
     required String dataType,
     required String filter,
-    required List<String> keys,
   }) async {
-    final samples = await _listSamples(
-      headers: headers,
-      dataType: dataType,
-      filter: filter,
-      valueKeys: keys,
-    );
-    if (samples.isEmpty) return null;
-    samples.sort((a, b) => b.time.compareTo(a.time));
-    return samples.first;
+    final uri = Uri.parse('$_base/users/me/dataTypes/$dataType/dataPoints')
+        .replace(queryParameters: {
+      'filter': filter,
+      'pageSize': '25',
+    });
+    final response = await _timedGet(uri, headers: headers);
+    if (response.statusCode >= 400) return null;
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final points = (body['dataPoints'] as List<dynamic>? ?? const []);
+    if (points.isEmpty) return null;
+
+    Map<String, dynamic>? best;
+    DateTime? bestTime;
+    for (final raw in points) {
+      final point = Map<String, dynamic>.from(raw as Map);
+      final time = _sampleTime(point, dataType: dataType);
+      if (time == null) continue;
+      if (bestTime == null || time.isAfter(bestTime)) {
+        bestTime = time;
+        best = point;
+      }
+    }
+    return best ?? Map<String, dynamic>.from(points.first as Map);
+  }
+
+  double? _parseWeightKg(Map<String, dynamic>? point) {
+    if (point == null) return null;
+    final nested = point['weight'] as Map<String, dynamic>? ?? point;
+    final grams = _numAt(nested, const [
+      'weightGrams',
+      'grams',
+      'weightKilograms',
+      'kilograms',
+      'weightPounds',
+      'pounds',
+    ]);
+    if (grams == null) return null;
+    // Prefer grams (API required field). Large values are grams.
+    if (nested.containsKey('weightGrams') || nested.containsKey('grams')) {
+      return grams / 1000.0;
+    }
+    if (nested.containsKey('weightKilograms') ||
+        nested.containsKey('kilograms')) {
+      return grams;
+    }
+    if (nested.containsKey('weightPounds') || nested.containsKey('pounds')) {
+      return grams / 2.2046226218;
+    }
+    // Heuristic when only a bare number is present.
+    if (grams > 200) return grams / 1000.0; // grams
+    if (grams > 100) return grams / 2.2046226218; // pounds
+    return grams; // kg
+  }
+
+  double? _parseHeightCm(Map<String, dynamic>? point) {
+    if (point == null) return null;
+    final nested = point['height'] as Map<String, dynamic>? ?? point;
+    final raw = _numAt(nested, const [
+      'heightMillimeters',
+      'millimeters',
+      'heightMeters',
+      'meters',
+      'inches',
+      'centimeters',
+    ]);
+    if (raw == null) return null;
+    if (nested.containsKey('heightMillimeters') ||
+        nested.containsKey('millimeters')) {
+      return raw / 10.0;
+    }
+    if (nested.containsKey('heightMeters') || nested.containsKey('meters')) {
+      return raw * 100.0;
+    }
+    if (nested.containsKey('inches')) return raw * 2.54;
+    if (raw > 500) return raw / 10.0; // mm
+    if (raw < 3.5) return raw * 100.0; // m
+    if (raw < 100) return raw * 2.54; // in
+    return raw; // cm
+  }
+
+  double? _parseBodyFatPercent(Map<String, dynamic>? point) {
+    if (point == null) return null;
+    final nested = point['bodyFat'] as Map<String, dynamic>? ?? point;
+    return _numAt(nested, const ['percentage', 'bodyFatPercentage', 'value']);
   }
 
   Future<List<PairedDeviceInfo>> _listPairedDevices({
@@ -825,69 +1094,157 @@ class GoogleHealthClient {
     required DateTime start,
     required DateTime end,
   }) async {
+    // Match Google Health app: wearable reconcile + main overnight session.
     final filter =
-        'sleep.interval.end_time >= "${start.toUtc().toIso8601String()}" '
-        'AND sleep.interval.end_time < "${end.toUtc().toIso8601String()}"';
-    final uri = Uri.parse('$_base/users/me/dataTypes/sleep/dataPoints')
-        .replace(queryParameters: {
-      'filter': filter,
-      'pageSize': '25',
-    });
+        'sleep.interval.civil_end_time >= "${_ymd(start)}" '
+        'AND sleep.interval.civil_end_time < "${_ymd(end)}"';
 
-    final response = await _timedGet(uri, headers: headers);
-    if (response.statusCode >= 400) return {};
+    var points = await _listDataPointsPaged(
+      headers: headers,
+      dataType: 'sleep',
+      filter: filter,
+      pageSize: '25',
+      maxPages: 40,
+      reconcileWearables: true,
+    );
+    if (points.isEmpty) {
+      points = await _listDataPointsPaged(
+        headers: headers,
+        dataType: 'sleep',
+        filter: filter,
+        pageSize: '25',
+        maxPages: 40,
+        reconcileWearables: false,
+      );
+    }
+    if (points.isEmpty) {
+      final physical =
+          'sleep.interval.end_time >= "${start.toUtc().toIso8601String()}" '
+          'AND sleep.interval.end_time < "${end.toUtc().toIso8601String()}"';
+      points = await _listDataPointsPaged(
+        headers: headers,
+        dataType: 'sleep',
+        filter: physical,
+        pageSize: '25',
+        maxPages: 40,
+        reconcileWearables: true,
+      );
+      if (points.isEmpty) {
+        points = await _listDataPointsPaged(
+          headers: headers,
+          dataType: 'sleep',
+          filter: physical,
+          pageSize: '25',
+          maxPages: 40,
+          reconcileWearables: false,
+        );
+      }
+    }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final points = (body['dataPoints'] as List<dynamic>? ?? const []);
-    final out = <DateTime, _SleepDay>{};
-
-    for (final raw in points) {
-      final point = raw as Map<String, dynamic>;
+    // Collect candidates per wake-up day, then pick the main overnight sleep
+    // (same behavior as Google Health / Fitbit — do not sum naps into the night).
+    final byDay = <DateTime, List<_SleepCandidate>>{};
+    for (final point in points) {
       final sleep = point['sleep'] as Map<String, dynamic>? ?? point;
       final interval = sleep['interval'] as Map<String, dynamic>? ?? {};
-      final endTime = DateTime.tryParse('${interval['endTime']}')?.toLocal() ??
-          _dateFromCivil(interval['civilEndTime'] as Map?);
-      if (endTime == null) continue;
-      final day = DateTime(endTime.year, endTime.month, endTime.day);
+      DateTime? day = _dateFromCivil(interval['civilEndTime'] as Map?);
+      if (day == null) {
+        final endTime = DateTime.tryParse('${interval['endTime']}')?.toLocal();
+        if (endTime != null) {
+          day = DateTime(endTime.year, endTime.month, endTime.day);
+        }
+      }
+      if (day == null) continue;
 
       final stages = _parseSleepStages(sleep);
-      final existing = out[day];
-      if (existing == null) {
-        out[day] = stages;
-      } else {
-        out[day] = existing + stages;
+      if (stages.totalMinutes <= 0 &&
+          stages.deepMinutes + stages.remMinutes + stages.lightMinutes <= 0) {
+        continue;
       }
+      final meta = sleep['metadata'] as Map<String, dynamic>? ?? const {};
+      final isMain = meta['main'] == true;
+      final isNap = meta['nap'] == true;
+      byDay.putIfAbsent(day, () => []).add(
+            _SleepCandidate(
+              stages: stages,
+              isMain: isMain,
+              isNap: isNap,
+            ),
+          );
+    }
+
+    final out = <DateTime, _SleepDay>{};
+    for (final entry in byDay.entries) {
+      final picked = _pickMainSleep(entry.value);
+      if (picked != null) out[entry.key] = picked;
     }
     return out;
   }
 
-  _SleepDay _parseSleepStages(Map<String, dynamic> sleep) {
-    var deep = 0, rem = 0, light = 0, awake = 0, total = 0;
+  _SleepDay? _pickMainSleep(List<_SleepCandidate> candidates) {
+    if (candidates.isEmpty) return null;
+    final mains = candidates.where((c) => c.isMain).toList();
+    final pool = mains.isNotEmpty
+        ? mains
+        : candidates.where((c) => !c.isNap).toList();
+    final use = pool.isNotEmpty ? pool : candidates;
+    use.sort((a, b) => b.stages.totalMinutes.compareTo(a.stages.totalMinutes));
+    return use.first.stages;
+  }
 
-    final stageList = sleep['sleepStages'] as List<dynamic>? ??
-        sleep['stages'] as List<dynamic>? ??
+  _SleepDay _parseSleepStages(Map<String, dynamic> sleep) {
+    // Prefer API summary: minutesAsleep excludes AWAKE (correct Fitbit-style total).
+    // NOTE: Google Health sometimes duplicates stagesSummary rows — dedupe by type.
+    final summary = sleep['summary'] as Map<String, dynamic>?;
+    if (summary != null) {
+      final stageSummaries =
+          (summary['stagesSummary'] as List<dynamic>? ?? const [])
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+      final totals = parseSleepStageSummary(
+        stagesSummary: stageSummaries,
+        minutesAsleep: _intish(summary['minutesAsleep']),
+        minutesAwake: _intish(summary['minutesAwake']),
+      );
+      return _SleepDay(
+        totalMinutes: totals.asleepMinutes,
+        deepMinutes: totals.deepMinutes,
+        remMinutes: totals.remMinutes,
+        lightMinutes: totals.lightMinutes,
+        awakeMinutes: totals.awakeMinutes,
+      );
+    }
+
+    var deep = 0, rem = 0, light = 0, awake = 0;
+    final stageList = sleep['stages'] as List<dynamic>? ??
+        sleep['sleepStages'] as List<dynamic>? ??
         const [];
 
     for (final raw in stageList) {
       if (raw is! Map) continue;
       final stage = Map<String, dynamic>.from(raw);
-      final type = '${stage['type'] ?? stage['stage'] ?? ''}'.toLowerCase();
+      final type = '${stage['type'] ?? stage['stage'] ?? ''}'.toUpperCase();
       final minutes = _stageMinutes(stage);
-      total += minutes;
-      if (type.contains('deep')) {
+      if (type.contains('DEEP')) {
         deep += minutes;
-      } else if (type.contains('rem')) {
+      } else if (type.contains('REM')) {
         rem += minutes;
-      } else if (type.contains('light') || type.contains('core')) {
+      } else if (type.contains('LIGHT') || type.contains('ASLEEP')) {
         light += minutes;
-      } else if (type.contains('awake') || type.contains('wake')) {
+      } else if (type.contains('AWAKE') ||
+          type.contains('WAKE') ||
+          type.contains('RESTLESS')) {
         awake += minutes;
       }
     }
 
+    var total = deep + rem + light;
     if (total == 0) {
-      final duration = sleep['duration'] ?? sleep['interval'];
-      total = _durationMinutes(duration)?.round() ?? 0;
+      // Interval length includes awake time — only use as last resort.
+      final duration = sleep['interval'];
+      final period = _durationMinutes(duration)?.round() ?? 0;
+      total = (period - awake).clamp(0, period);
     }
 
     return _SleepDay(
@@ -897,6 +1254,13 @@ class GoogleHealthClient {
       lightMinutes: light,
       awakeMinutes: awake,
     );
+  }
+
+  int? _intish(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value) ?? double.tryParse(value)?.round();
+    return null;
   }
 
   int _stageMinutes(Map<String, dynamic> stage) {
@@ -935,7 +1299,7 @@ class GoogleHealthClient {
     required DateTime start,
     required DateTime end,
   }) async {
-    return _listSamplesChunked(
+    final raw = await _listSamplesChunked(
       headers: headers,
       dataType: 'oxygen-saturation',
       start: start,
@@ -945,11 +1309,19 @@ class GoogleHealthClient {
           'oxygen_saturation.sample_time.physical_time >= "${chunkStart.toUtc().toIso8601String()}" '
           'AND oxygen_saturation.sample_time.physical_time < "${chunkEnd.toUtc().toIso8601String()}"',
       valueKeys: const [
-        'saturationPercentage',
         'percentage',
+        'saturationPercentage',
         'oxygenSaturationPercentage',
+        'averagePercentage',
       ],
     );
+    final out = <MetricSample>[];
+    for (final s in raw) {
+      final pct = _normalizeSpo2(s.value);
+      if (pct == null) continue;
+      out.add(MetricSample(time: s.time, value: pct));
+    }
+    return out;
   }
 
   Future<List<MetricSample>> _listSamplesChunked({
@@ -1019,10 +1391,23 @@ class GoogleHealthClient {
       for (final raw in points) {
         final point = raw as Map<String, dynamic>;
         final time = _sampleTime(point, dataType: dataType);
-        final value = _numAt(point[_camel(dataType)], valueKeys) ??
-            _numAt(point['value'], valueKeys) ??
-            _firstNumeric(point);
-        if (time == null || value == null) continue;
+        if (time == null) continue;
+
+        // Only read numbers from the typed payload — never the whole point
+        // (dataSource / timestamps used to leak garbage into SpO2 & body).
+        final typed = point[_camel(dataType)];
+        double? value;
+        if (typed is Map) {
+          final typedMap = Map<String, dynamic>.from(typed);
+          value = _numAt(typedMap, valueKeys);
+        } else {
+          value = _numAt(point['value'], valueKeys);
+        }
+        if (value == null) continue;
+        if (dataType == 'oxygen-saturation') {
+          value = _normalizeSpo2(value);
+          if (value == null) continue;
+        }
         out.add(MetricSample(time: time, value: value));
       }
       pageToken = body['nextPageToken'] as String?;
@@ -1142,6 +1527,15 @@ class GoogleHealthClient {
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// SpO2 must be 0–100%. Some feeds send 0–1 fractions or junk from bad keys.
+  double? _normalizeSpo2(double? raw) {
+    if (raw == null || raw.isNaN || raw.isInfinite) return null;
+    var v = raw;
+    if (v > 0 && v <= 1.0) v *= 100.0;
+    if (v < 70 || v > 100) return null;
+    return double.parse(v.toStringAsFixed(1));
+  }
+
   String _camel(String kebab) {
     final parts = kebab.split('-');
     if (parts.isEmpty) return kebab;
@@ -1210,6 +1604,18 @@ class GoogleHealthClient {
     }
     return null;
   }
+}
+
+class _SleepCandidate {
+  const _SleepCandidate({
+    required this.stages,
+    required this.isMain,
+    required this.isNap,
+  });
+
+  final _SleepDay stages;
+  final bool isMain;
+  final bool isNap;
 }
 
 class _SleepDay {

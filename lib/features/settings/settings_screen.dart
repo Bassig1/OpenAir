@@ -159,97 +159,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
-              'Push alerts',
+              'Push notifications',
               style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
-              'Unusual heart rate, workout complete progress, and overnight sleep summary.',
+              'Separate channels: Sleep · Heart & vitals · Workouts · Recovery.',
               style: TextStyle(color: colors.textSecondary),
             ),
             value: app.alertsEnabled,
             activeThumbColor: colors.green,
             onChanged: (v) => app.setAlertsEnabled(v),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _webClientController,
-            obscureText: _obscureClient,
-            style: TextStyle(color: colors.textPrimary),
-            decoration: InputDecoration(
-              labelText: 'Google Web OAuth Client ID',
-              hintText: '….apps.googleusercontent.com',
-              suffixIcon: IconButton(
-                onPressed: () => setState(() => _obscureClient = !_obscureClient),
-                icon: Icon(_obscureClient ? Icons.visibility : Icons.visibility_off),
+          if (app.alertsEnabled) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              child: Text(
+                'Sleep — overnight performance & debt\n'
+                'Heart & vitals — unusual resting rate\n'
+                'Workouts — session complete + strain\n'
+                'Recovery — daily readiness brief',
+                style: TextStyle(
+                  color: colors.textMuted,
+                  height: 1.45,
+                  fontSize: 13,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.tonal(
-              onPressed: () async {
-                await app.saveGoogleWebClientId(_webClientController.text);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Web Client ID saved')),
-                  );
-                }
-              },
-              child: const Text('Save Client ID'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cloud OAuth values for this debug APK',
-                  style: TextStyle(
-                    color: colors.green,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(
-                  'Package: ${GoogleHealthClient.androidPackageName}\n'
-                  'SHA-1: ${GoogleHealthClient.debugSha1}',
-                  style: TextStyle(color: colors.textSecondary, height: 1.4),
-                ),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () async {
-                    await Clipboard.setData(
-                      ClipboardData(
-                        text:
-                            '${GoogleHealthClient.androidPackageName}\n${GoogleHealthClient.debugSha1}',
-                      ),
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Package + SHA-1 copied')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copy package + SHA-1'),
-                ),
-                Text(
-                  'Web Client ID is preloaded for this build. Confirm Android OAuth client uses package + SHA-1 below, then Connect.',
-                  style: TextStyle(color: colors.textMuted, height: 1.35),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
+          ],
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
@@ -311,7 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           const Divider(height: 36),
           Text(
-            'Gemini Coach',
+            'Gemini analysis',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
@@ -320,42 +257,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Text(
             app.geminiReady
-                ? 'Gemini free-tier analysis is included automatically after you connect Google Health. Optional: paste your own AI Studio key to use a personal quota.'
-                : 'Connect Google Health to unlock seamless Gemini coaching (project free tier).',
+                ? 'On automatically after Google Health connect. Deeper Whoop-style analysis refreshes after each sync — no API key setup needed for this personal build.'
+                : 'Gemini is unavailable in this build.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
+                  height: 1.4,
+                ),
+          ),
+          const Divider(height: 36),
+          Text(
+            'Share data with Cursor',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Exports your synced days, body metrics, recovery-style analysis, '
+            'and a short raw Google Health sample into one JSON. Paste it in '
+            'Cursor chat so the agent can verify accuracy for you — no manual UI checking.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
                 ),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _geminiController,
-            obscureText: _obscure,
-            decoration: InputDecoration(
-              labelText: 'Optional personal Gemini API key',
-              suffixIcon: IconButton(
-                onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-              ),
+          FilledButton.icon(
+            onPressed: app.diagnosticExporting
+                ? null
+                : () async {
+                    try {
+                      final json =
+                          await app.exportDiagnosticsForCursor(includeRaw: true);
+                      await Clipboard.setData(ClipboardData(text: json));
+                      if (!context.mounted) return;
+                      final chars = json.length;
+                      await showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Diagnostic export ready'),
+                          content: Text(
+                            'Copied ~${(chars / 1024).toStringAsFixed(0)} KB to the clipboard.\n\n'
+                            'In Cursor: paste into chat and say “review this OpenAir dump and fix anything wrong.”\n\n'
+                            'Or save it as diagnostics/latest.json in the OpenAir project folder.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Got it'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $e')),
+                      );
+                    }
+                  },
+            icon: app.diagnosticExporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.ios_share),
+            label: Text(
+              app.diagnosticExporting
+                  ? 'Building export…'
+                  : 'Export data for Cursor',
             ),
           ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () async {
-              await app.saveGeminiKey(_geminiController.text);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Personal Gemini key saved')),
-                );
-              }
-            },
-            child: const Text('Save personal key'),
-          ),
-          TextButton(
-            onPressed: () async {
-              _geminiController.clear();
-              await app.saveGeminiKey(null);
-            },
-            child: const Text('Use project free tier'),
+          const Divider(height: 36),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              title: Text(
+                'Advanced',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+              ),
+              subtitle: Text(
+                'OAuth debug values and optional Gemini override',
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
+              ),
+              children: [
+                TextField(
+                  controller: _webClientController,
+                  obscureText: _obscureClient,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Google Web OAuth Client ID',
+                    hintText: '….apps.googleusercontent.com',
+                    suffixIcon: IconButton(
+                      onPressed: () =>
+                          setState(() => _obscureClient = !_obscureClient),
+                      icon: Icon(
+                        _obscureClient
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonal(
+                    onPressed: () async {
+                      await app
+                          .saveGoogleWebClientId(_webClientController.text);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Web Client ID saved')),
+                        );
+                      }
+                    },
+                    child: const Text('Save Client ID'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  'Package: ${GoogleHealthClient.androidPackageName}\n'
+                  'SHA-1: ${GoogleHealthClient.debugSha1}',
+                  style: TextStyle(color: colors.textSecondary, height: 1.4),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(
+                        text:
+                            '${GoogleHealthClient.androidPackageName}\n${GoogleHealthClient.debugSha1}',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Package + SHA-1 copied')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy package + SHA-1'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _geminiController,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText: 'Optional personal Gemini API key',
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                      icon: Icon(
+                        _obscure ? Icons.visibility : Icons.visibility_off,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    FilledButton(
+                      onPressed: () async {
+                        await app.saveGeminiKey(_geminiController.text);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Personal Gemini key saved'),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Save personal key'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () async {
+                        _geminiController.clear();
+                        await app.saveGeminiKey(null);
+                      },
+                      child: const Text('Use project key'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           const Divider(height: 36),
           Text(
