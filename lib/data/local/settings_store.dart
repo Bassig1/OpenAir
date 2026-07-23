@@ -16,6 +16,7 @@ class SettingsStore {
   static const _profileKey = 'user_profile_json';
   static const _lastSleepNotifyKey = 'last_sleep_notify_ymd';
   static const _lastHrNotifyKey = 'last_hr_notify_ymd';
+  static const _lastRecoveryNotifyKey = 'last_recovery_notify_ymd';
   static const _alertsEnabledKey = 'alerts_enabled';
   static const _aiAnalysisKey = 'ai_analysis_text';
   static const _aiAnalysisDayKey = 'ai_analysis_day';
@@ -132,6 +133,16 @@ class SettingsStore {
   Future<void> setLastHrNotifyYmd(String ymd) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastHrNotifyKey, ymd);
+  }
+
+  Future<String?> getLastRecoveryNotifyYmd() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastRecoveryNotifyKey);
+  }
+
+  Future<void> setLastRecoveryNotifyYmd(String ymd) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastRecoveryNotifyKey, ymd);
   }
 
   Future<({String? dayKey, String? text})> getAiAnalysis() async {

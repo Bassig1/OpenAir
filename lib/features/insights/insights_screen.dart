@@ -67,9 +67,13 @@ class InsightsScreen extends StatelessWidget {
                   : Text(
                       app.aiAnalysis?.trim().isNotEmpty == true
                           ? app.aiAnalysis!
-                          : 'Pull to refresh on Today, or tap the sparkle to generate your first Gemini analysis.',
+                          : (app.aiAnalysisError ??
+                              'Pull to refresh on Today, or tap the sparkle to generate your first Gemini analysis.'),
                       style: TextStyle(
-                        color: colors.textSecondary,
+                        color: app.aiAnalysisError != null &&
+                                (app.aiAnalysis ?? '').isEmpty
+                            ? colors.heart
+                            : colors.textSecondary,
                         height: 1.45,
                       ),
                     ),

@@ -170,7 +170,7 @@ class TodayScreen extends StatelessWidget {
                                 ),
                                 if (brief != null) ...[
                                   const SizedBox(height: 28),
-                                  const SectionHeader('Daily brief'),
+                                  const SectionHeader('What this means'),
                                   const SizedBox(height: 12),
                                   Container(
                                     width: double.infinity,
@@ -183,8 +183,8 @@ class TodayScreen extends StatelessWidget {
                                     child: Text(
                                       brief.coaching,
                                       style: TextStyle(
-                                        color: colors.textSecondary,
-                                        height: 1.45,
+                                        color: colors.textPrimary,
+                                        height: 1.5,
                                       ),
                                     ),
                                   ),
@@ -227,7 +227,7 @@ class TodayScreen extends StatelessWidget {
                                 if (app.geminiReady) ...[
                                   const SizedBox(height: 24),
                                   SectionHeader(
-                                    'Gemini analysis',
+                                    'Deeper analysis',
                                     trailing: TextButton(
                                       onPressed: app.aiAnalysisLoading
                                           ? null
@@ -241,6 +241,15 @@ class TodayScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Same Fitbit → Google Health numbers, explained in plain language.',
+                                    style: TextStyle(
+                                      color: colors.textMuted,
+                                      fontSize: 13,
+                                      height: 1.35,
+                                    ),
+                                  ),
                                   const SizedBox(height: 12),
                                   Container(
                                     width: double.infinity,
@@ -251,15 +260,21 @@ class TodayScreen extends StatelessWidget {
                                       border: Border.all(color: colors.border),
                                     ),
                                     child: Text(
-                                      (app.aiAnalysis ?? '').trim().isEmpty
-                                          ? 'Generating a deeper read of today’s sleep, heart, and strain from your Google Health data…'
-                                          : app.aiAnalysis!,
+                                      (app.aiAnalysis ?? '').trim().isNotEmpty
+                                          ? app.aiAnalysis!
+                                          : (app.aiAnalysisError ??
+                                              (app.aiAnalysisLoading
+                                                  ? 'Writing your daily analysis from Google Health…'
+                                                  : 'Tap Refresh to generate analysis.')),
                                       style: TextStyle(
-                                        color: colors.textSecondary,
-                                        height: 1.45,
+                                        color: app.aiAnalysisError != null &&
+                                                (app.aiAnalysis ?? '')
+                                                    .trim()
+                                                    .isEmpty
+                                            ? colors.heart
+                                            : colors.textSecondary,
+                                        height: 1.5,
                                       ),
-                                      maxLines: 18,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                   Align(
@@ -404,6 +419,42 @@ class TodayScreen extends StatelessWidget {
                                       accent: colors.heart,
                                     ),
                                     MetricTile(
+                                      label: 'SpO₂',
+                                      value: day.spo2Percent == null
+                                          ? '—'
+                                          : '${day.spo2Percent!.toStringAsFixed(1)}%',
+                                      hint: 'overnight avg',
+                                      accent: colors.spo2,
+                                    ),
+                                    MetricTile(
+                                      label: 'Resp. rate',
+                                      value: day.respiratoryRate == null
+                                          ? '—'
+                                          : day.respiratoryRate!
+                                              .toStringAsFixed(1),
+                                      hint: 'br/min',
+                                      accent: colors.sleep,
+                                    ),
+                                    MetricTile(
+                                      label: 'Skin temp Δ',
+                                      value: day.skinTempDeviation == null
+                                          ? '—'
+                                          : '${day.skinTempDeviation!.toStringAsFixed(2)}°',
+                                      hint: 'vs baseline',
+                                      accent: colors.strain,
+                                    ),
+                                    MetricTile(
+                                      label: 'VO₂ max',
+                                      value: day.vo2Max == null
+                                          ? (app.effectiveBody.vo2Max == null
+                                              ? '—'
+                                              : app.effectiveBody.vo2Max!
+                                                  .toStringAsFixed(1))
+                                          : day.vo2Max!.toStringAsFixed(1),
+                                      hint: 'cardio fitness',
+                                      accent: colors.green,
+                                    ),
+                                    MetricTile(
                                       label: 'Sleep need',
                                       value: formatMinutes(
                                         day.sleepNeededMinutes ??
@@ -421,13 +472,58 @@ class TodayScreen extends StatelessWidget {
                                         app.effectiveBody.weightKg,
                                         metric: app.profile.useMetric,
                                       ),
-                                      hint: Units.height(
-                                        app.effectiveBody.heightCm,
-                                        metric: app.profile.useMetric,
-                                      ),
+                                      hint: [
+                                        Units.height(
+                                          app.effectiveBody.heightCm,
+                                          metric: app.profile.useMetric,
+                                        ),
+                                        if (app.effectiveBody.bodyFatPercent !=
+                                            null)
+                                          'fat ${app.effectiveBody.bodyFatPercent!.toStringAsFixed(1)}%',
+                                      ].join(' · '),
                                     ),
                                   ],
                                 ),
+                                if (day.heartRateZones != null) ...[
+                                  const SizedBox(height: 24),
+                                  const SectionHeader('Heart rate zones'),
+                                  const SizedBox(height: 12),
+                                  GridView.count(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 1.45,
+                                    children: [
+                                      MetricTile(
+                                        label: 'Out of range',
+                                        value:
+                                            '${day.heartRateZones!.outOfRangeMinutes}m',
+                                        accent: colors.textMuted,
+                                      ),
+                                      MetricTile(
+                                        label: 'Fat burn',
+                                        value:
+                                            '${day.heartRateZones!.fatBurnMinutes}m',
+                                        accent: colors.strain,
+                                      ),
+                                      MetricTile(
+                                        label: 'Cardio',
+                                        value:
+                                            '${day.heartRateZones!.cardioMinutes}m',
+                                        accent: colors.heart,
+                                      ),
+                                      MetricTile(
+                                        label: 'Peak',
+                                        value:
+                                            '${day.heartRateZones!.peakMinutes}m',
+                                        accent: colors.green,
+                                      ),
+                                    ],
+                                  ),
+                                ],
                                 if (day.recoveryBreakdown != null) ...[
                                   const SizedBox(height: 24),
                                   const SectionHeader('Recovery mix'),
