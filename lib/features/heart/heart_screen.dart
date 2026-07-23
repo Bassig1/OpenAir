@@ -29,6 +29,88 @@ class HeartScreen extends StatelessWidget {
         children: [
           DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
           const SizedBox(height: 20),
+          if (app.heartbeatAnalysis != null) ...[
+            const SectionHeader('Heartbeat analysis'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                MetricTile(
+                  label: 'Resting',
+                  value: app.heartbeatAnalysis!.restingHr == null
+                      ? '—'
+                      : '${app.heartbeatAnalysis!.restingHr!.round()}',
+                  hint: 'bpm · ${app.heartbeatAnalysis!.rhrTrend}',
+                  accent: colors.heart,
+                ),
+                MetricTile(
+                  label: 'HRV',
+                  value: app.heartbeatAnalysis!.hrvMs == null
+                      ? '—'
+                      : '${app.heartbeatAnalysis!.hrvMs!.round()}',
+                  hint: 'ms · ${app.heartbeatAnalysis!.hrvTrend}',
+                  accent: colors.green,
+                ),
+                MetricTile(
+                  label: 'Min / Max',
+                  value: '${app.heartbeatAnalysis!.minHr?.round() ?? '—'} / ${app.heartbeatAnalysis!.maxHr?.round() ?? '—'}',
+                  hint: 'bpm',
+                ),
+                MetricTile(
+                  label: 'Zones',
+                  value: '${app.heartbeatAnalysis!.fatBurnMinutes}/${app.heartbeatAnalysis!.cardioMinutes}/${app.heartbeatAnalysis!.peakMinutes}',
+                  hint: 'fat/cardio/peak min',
+                  accent: colors.strain,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (app.oxygenAnalysis != null) ...[
+            const SectionHeader('Blood oxygen analysis'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                MetricTile(
+                  label: 'Avg SpO₂',
+                  value: app.oxygenAnalysis!.averagePercent == null
+                      ? '—'
+                      : '${app.oxygenAnalysis!.averagePercent!.toStringAsFixed(1)}%',
+                  hint: app.oxygenAnalysis!.statusLabel,
+                  accent: colors.spo2,
+                ),
+                MetricTile(
+                  label: 'Min / Max',
+                  value:
+                      '${app.oxygenAnalysis!.minPercent?.toStringAsFixed(1) ?? '—'} / ${app.oxygenAnalysis!.maxPercent?.toStringAsFixed(1) ?? '—'}',
+                ),
+                MetricTile(
+                  label: 'Samples',
+                  value: '${app.oxygenAnalysis!.sampleCount}',
+                ),
+                MetricTile(
+                  label: 'Resp. rate',
+                  value: app.oxygenAnalysis!.respiratoryRate == null
+                      ? '—'
+                      : app.oxygenAnalysis!.respiratoryRate!.toStringAsFixed(1),
+                  hint: 'br/min',
+                  accent: colors.sleep,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

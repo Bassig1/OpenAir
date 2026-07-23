@@ -524,7 +524,29 @@ class GoogleHealthClient {
             'maximumHeartRate',
             'beatsPerMinuteMax',
           ]),
+          minHeartRate: _numAt(exercise, const [
+            'minHeartRate',
+            'minimumHeartRate',
+            'beatsPerMinuteMin',
+          ]),
           steps: _numAt(exercise, const ['steps', 'stepCount'])?.round(),
+          elevationGainMeters: () {
+            final mm = _numAt(exercise, const [
+              'elevationGainMillimeters',
+              'elevationMillimeters',
+            ]);
+            if (mm != null) return mm / 1000.0;
+            return _numAt(exercise, const ['elevationGainMeters', 'elevation']);
+          }(),
+          zoneMinutes: _numAt(exercise, const [
+            'activeZoneMinutes',
+            'zoneMinutes',
+          ])?.round(),
+          speedMetersPerSecond: _numAt(exercise, const [
+            'averageSpeedMetersPerSecond',
+            'speedMetersPerSecond',
+            'speed',
+          ]),
         ),
       );
     }

@@ -84,10 +84,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Keep the official Fitbit app syncing your device. OpenAir reads the cloud copy through Google Health.',
+            'Fitbit devices only sync through the official Fitbit app (Google rule). OpenAir then reads the same Google Health cloud feed every minute for Health-app accuracy — not direct Bluetooth.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sync health: ${app.syncHealth.status.name.toUpperCase()}',
+                  style: TextStyle(
+                    color: colors.green,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  app.syncHealth.message,
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+                if (app.syncHealth.missingDayCount > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Gaps in last 7 days: ${app.syncHealth.missingDayCount}',
+                    style: TextStyle(color: colors.heart),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           SwitchListTile(
@@ -111,7 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
-              'Poll every 2 minutes and refresh when the app resumes, when Google Health is connected.',
+              'Poll Google Health every 1 minute and refresh on app resume when connected.',
               style: TextStyle(color: colors.textSecondary),
             ),
             value: app.liveSyncEnabled,

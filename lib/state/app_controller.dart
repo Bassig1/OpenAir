@@ -9,6 +9,7 @@ import '../data/local/journal_store.dart';
 import '../data/local/settings_store.dart';
 import '../domain/models/day_summary.dart';
 import '../domain/models/health_extras.dart';
+import '../domain/scores/advanced_analysis.dart';
 import '../domain/scores/score_engine.dart';
 
 class AppController extends ChangeNotifier with WidgetsBindingObserver {
@@ -32,8 +33,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final ScoreEngine _scoreEngine;
   final GeminiCoach _coach;
   final JournalStore _journalStore;
+  final AdvancedAnalysis _analysis = const AdvancedAnalysis();
 
-  static const livePollInterval = Duration(minutes: 2);
+  static const livePollInterval = Duration(minutes: 1);
 
   List<DaySummary> days = const [];
   List<ChatMessage> chat = const [];
@@ -69,6 +71,39 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   List<GuidedProgram> get programs => ScoreEngine.guidedPrograms;
 
   List<InsightItem> get todaysInsights => selectedDay?.insights ?? const [];
+
+  SyncHealth get syncHealth => _analysis.assessSync(
+        days: days,
+        lastSyncedAt: lastSyncedAt,
+        isLive: isLive,
+      );
+
+  SleepAnalysis? get sleepAnalysis {
+    final day = selectedDay;
+    if (day == null) return null;
+    return _analysis.sleep(day);
+  }
+
+  HeartbeatAnalysis? get heartbeatAnalysis {
+    final day = selectedDay;
+    if (day == null) return null;
+    return _analysis.heartbeat(day, days);
+  }
+
+  OxygenAnalysis? get oxygenAnalysis {
+    final day = selectedDay;
+    if (day == null) return null;
+    return _analysis.oxygen(day);
+  }
+
+  List<ExerciseSession> get allRecentWorkouts {
+    final list = <ExerciseSession>[];
+    for (final d in days) {
+      list.addAll(d.exercises);
+    }
+    list.sort((a, b) => b.start.compareTo(a.start));
+    return list;
+  }
 
   Future<void> bootstrap() async {
     WidgetsBinding.instance.addObserver(this);

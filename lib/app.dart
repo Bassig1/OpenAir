@@ -14,6 +14,7 @@ import 'features/sleep/sleep_screen.dart';
 import 'features/strain/strain_screen.dart';
 import 'features/stress/stress_readiness_screen.dart';
 import 'features/today/today_screen.dart';
+import 'features/workouts/workouts_screen.dart';
 import 'features/weekly/weekly_screen.dart';
 import 'state/app_controller.dart';
 import 'theme/openair_theme.dart';
@@ -79,6 +80,7 @@ class OpenAirApp extends StatelessWidget {
         GoRoute(path: '/journal', builder: (context, state) => const JournalScreen()),
         GoRoute(path: '/insights', builder: (context, state) => const InsightsScreen()),
         GoRoute(path: '/programs', builder: (context, state) => const ProgramsScreen()),
+        GoRoute(path: '/workouts', builder: (context, state) => const WorkoutsScreen()),
         GoRoute(path: '/coach', builder: (context, state) => const CoachScreen()),
       ],
     );

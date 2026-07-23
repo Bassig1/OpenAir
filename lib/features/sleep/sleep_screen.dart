@@ -131,6 +131,50 @@ class SleepScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (app.sleepAnalysis != null) ...[
+            const SizedBox(height: 28),
+            const SectionHeader('Advanced sleep analysis'),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.35,
+              children: [
+                MetricTile(
+                  label: 'Efficiency',
+                  value: '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(0)}%',
+                  accent: colors.sleep,
+                ),
+                MetricTile(
+                  label: 'Restorative',
+                  value: '${app.sleepAnalysis!.restorativePercent.toStringAsFixed(0)}%',
+                  hint: formatMinutes(app.sleepAnalysis!.restorativeMinutes),
+                  accent: colors.green,
+                ),
+                MetricTile(
+                  label: 'Deep %',
+                  value: '${app.sleepAnalysis!.deepPercent.toStringAsFixed(0)}%',
+                ),
+                MetricTile(
+                  label: 'REM %',
+                  value: '${app.sleepAnalysis!.remPercent.toStringAsFixed(0)}%',
+                ),
+                MetricTile(
+                  label: 'Disturbances',
+                  value: '${app.sleepAnalysis!.disturbanceCount}',
+                  accent: colors.heart,
+                ),
+                MetricTile(
+                  label: 'Debt',
+                  value: formatMinutes(app.sleepAnalysis!.debtMinutes.abs()),
+                  hint: app.sleepAnalysis!.debtMinutes >= 0 ? 'behind' : 'ahead',
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

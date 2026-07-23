@@ -8,7 +8,11 @@ class ExerciseSession {
     this.distanceMeters,
     this.avgHeartRate,
     this.maxHeartRate,
+    this.minHeartRate,
     this.steps,
+    this.elevationGainMeters,
+    this.zoneMinutes,
+    this.speedMetersPerSecond,
   });
 
   final String id;
@@ -19,9 +23,21 @@ class ExerciseSession {
   final double? distanceMeters;
   final double? avgHeartRate;
   final double? maxHeartRate;
+  final double? minHeartRate;
   final int? steps;
+  final double? elevationGainMeters;
+  final int? zoneMinutes;
+  final double? speedMetersPerSecond;
 
   int get durationMinutes => end.difference(start).inMinutes.abs();
+
+  double? get paceMinPerKm {
+    if (distanceMeters == null || distanceMeters! <= 0 || durationMinutes <= 0) {
+      return null;
+    }
+    final km = distanceMeters! / 1000.0;
+    return durationMinutes / km;
+  }
 
   Map<String, dynamic> toCoachJson() => {
         'name': name,
@@ -32,7 +48,12 @@ class ExerciseSession {
         'distanceMeters': distanceMeters,
         'avgHeartRate': avgHeartRate,
         'maxHeartRate': maxHeartRate,
+        'minHeartRate': minHeartRate,
         'steps': steps,
+        'elevationGainMeters': elevationGainMeters,
+        'zoneMinutes': zoneMinutes,
+        'speedMetersPerSecond': speedMetersPerSecond,
+        'paceMinPerKm': paceMinPerKm,
       };
 }
 

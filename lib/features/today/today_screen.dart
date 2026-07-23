@@ -94,9 +94,7 @@ class TodayScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          app.isLive
-                              ? 'Live Google Health sync (same Fitbit cloud feed as the Health app). Pull to refresh anytime.'
-                              : 'Demo mode — connect Google Health in Settings for live Fitbit data.',
+                          app.syncHealth.message,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: colors.textMuted,
                               ),
@@ -238,6 +236,10 @@ class TodayScreen extends StatelessWidget {
                           runSpacing: 8,
                           children: [
                             ActionChip(
+                              label: const Text('Workouts'),
+                              onPressed: () => context.push('/workouts'),
+                            ),
+                            ActionChip(
                               label: const Text('Weekly'),
                               onPressed: () => context.push('/weekly'),
                             ),
@@ -344,7 +346,7 @@ class TodayScreen extends StatelessWidget {
                         ],
                         const SizedBox(height: 20),
                         Text(
-                          'OpenAir polls Google Health every 2 minutes while open (and on resume) so vitals stay as current as Fitbit’s cloud sync allows.',
+                          'OpenAir polls Google Health every minute while open (and on resume). Keep the Fitbit app syncing the device — Fitbit does not allow third-party Bluetooth. Raw vitals target Google Health accuracy.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: colors.textSecondary,
                                 height: 1.4,
