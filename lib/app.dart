@@ -79,7 +79,9 @@ class OpenAirApp extends StatelessWidget {
         return MaterialApp.router(
           title: 'OpenAir',
           debugShowCheckedModeBanner: false,
-          theme: OpenAirTheme.dark(),
+          theme: OpenAirTheme.light(),
+          darkTheme: OpenAirTheme.dark(),
+          themeMode: controller.themeMode,
           routerConfig: router,
         );
       },

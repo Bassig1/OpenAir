@@ -11,22 +11,23 @@ class MetricTile extends StatelessWidget {
     required this.label,
     required this.value,
     this.hint,
-    this.accent = OpenAirColors.textPrimary,
+    this.accent,
   });
 
   final String label;
   final String value;
   final String? hint;
-  final Color accent;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: OpenAirColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: OpenAirColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,7 +35,7 @@ class MetricTile extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: OpenAirColors.textMuted,
+                  color: colors.textMuted,
                   letterSpacing: 1.1,
                   fontWeight: FontWeight.w600,
                 ),
@@ -43,7 +44,7 @@ class MetricTile extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: accent,
+                  color: accent ?? colors.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
           ),
@@ -52,7 +53,7 @@ class MetricTile extends StatelessWidget {
             Text(
               hint!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: OpenAirColors.textSecondary,
+                    color: colors.textSecondary,
                   ),
             ),
           ],
@@ -100,6 +101,7 @@ class DayStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final fmt = DateFormat('E');
     return SizedBox(
       height: 72,
@@ -112,53 +114,52 @@ class DayStrip extends StatelessWidget {
           final isSelected = selected?.date == day.date;
           final recovery = day.recoveryScore ?? 0;
           final color = recovery >= 67
-              ? OpenAirColors.recovery
+              ? colors.green
               : recovery >= 34
-                  ? OpenAirColors.strain
-                  : OpenAirColors.heart;
+                  ? colors.strain
+                  : colors.heart;
           return Material(
             color: Colors.transparent,
             child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => onSelected(index),
-            child: Container(
-              width: 52,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? OpenAirColors.surfaceElevated
-                    : OpenAirColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isSelected ? color : OpenAirColors.border,
-                  width: isSelected ? 1.5 : 1,
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => onSelected(index),
+              child: Container(
+                width: 52,
+                decoration: BoxDecoration(
+                  color: isSelected ? colors.surfaceElevated : colors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? color : colors.border,
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      fmt.format(day.date).substring(0, 1),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${day.date.day}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration:
+                          BoxDecoration(color: color, shape: BoxShape.circle),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    fmt.format(day.date).substring(0, 1),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: OpenAirColors.textSecondary,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${day.date.day}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                ],
-              ),
             ),
-          ),
           );
         },
       ),
@@ -180,6 +181,7 @@ class ContributionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final progress = (value / 100).clamp(0.0, 1.0);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -201,7 +203,7 @@ class ContributionBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: OpenAirColors.border,
+              backgroundColor: colors.border,
               color: color,
             ),
           ),
@@ -218,13 +220,14 @@ class WorkoutTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: OpenAirColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: OpenAirColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
@@ -232,10 +235,10 @@ class WorkoutTile extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: OpenAirColors.surfaceElevated,
+              color: colors.surfaceElevated,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.fitness_center, color: OpenAirColors.strain),
+            child: Icon(Icons.fitness_center, color: colors.green),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -252,7 +255,7 @@ class WorkoutTile extends StatelessWidget {
                   '${session.calories == null ? '' : ' · ${session.calories!.round()} kcal'}'
                   '${session.avgHeartRate == null ? '' : ' · ${session.avgHeartRate!.round()} bpm'}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: OpenAirColors.textSecondary,
+                        color: colors.textSecondary,
                       ),
                 ),
               ],
@@ -261,7 +264,63 @@ class WorkoutTile extends StatelessWidget {
           Text(
             DateFormat('h:mm a').format(session.start),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: OpenAirColors.textMuted,
+                  color: colors.textMuted,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LiveBadge extends StatelessWidget {
+  const LiveBadge({super.key, required this.live, this.syncing = false});
+
+  final bool live;
+  final bool syncing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: live
+            ? colors.green.withValues(alpha: 0.15)
+            : colors.surfaceElevated,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(
+          color: live ? colors.green : colors.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (syncing)
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: colors.green,
+              ),
+            )
+          else
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: live ? colors.green : colors.textMuted,
+                shape: BoxShape.circle,
+              ),
+            ),
+          const SizedBox(width: 6),
+          Text(
+            live ? 'LIVE' : 'DEMO',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: live ? colors.green : colors.textMuted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
                 ),
           ),
         ],

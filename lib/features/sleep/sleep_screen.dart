@@ -11,6 +11,7 @@ class SleepScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
     final day = app.selectedDay;
     if (day == null) {
@@ -18,10 +19,10 @@ class SleepScreen extends StatelessWidget {
     }
 
     final stages = [
-      ('Deep', day.deepSleepMinutes, OpenAirColors.sleep),
+      ('Deep', day.deepSleepMinutes, colors.sleep),
       ('REM', day.remSleepMinutes, const Color(0xFF8BB4FF)),
       ('Light', day.lightSleepMinutes, const Color(0xFF3A4A66)),
-      ('Awake', day.awakeMinutes, OpenAirColors.textMuted),
+      ('Awake', day.awakeMinutes, colors.textMuted),
     ];
     final total = stages.fold<int>(0, (a, b) => a + b.$2).clamp(1, 100000);
 
@@ -36,13 +37,13 @@ class SleepScreen extends StatelessWidget {
             formatMinutes(day.sleepMinutes),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: OpenAirColors.sleep,
+                  color: colors.sleep,
                 ),
           ),
           Text(
             'Performance ${day.sleepScore?.toStringAsFixed(0) ?? '—'}  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? 480)}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: OpenAirColors.textSecondary,
+                  color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: 24),
@@ -81,7 +82,7 @@ class SleepScreen extends StatelessWidget {
                   Text(
                     '${formatMinutes(stage.$2)}  ·  $pct%',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: OpenAirColors.textSecondary,
+                          color: colors.textSecondary,
                         ),
                   ),
                 ],
@@ -104,14 +105,14 @@ class SleepScreen extends StatelessWidget {
                 value: day.spo2Percent == null
                     ? '—'
                     : '${day.spo2Percent!.toStringAsFixed(1)}%',
-                accent: OpenAirColors.spo2,
+                accent: colors.spo2,
               ),
               MetricTile(
                 label: 'Resting HR',
                 value: day.restingHeartRate == null
                     ? '—'
                     : '${day.restingHeartRate!.round()} bpm',
-                accent: OpenAirColors.heart,
+                accent: colors.heart,
               ),
               MetricTile(
                 label: 'Resp. rate',
@@ -119,14 +120,14 @@ class SleepScreen extends StatelessWidget {
                     ? '—'
                     : day.respiratoryRate!.toStringAsFixed(1),
                 hint: 'br/min',
-                accent: OpenAirColors.sleep,
+                accent: colors.sleep,
               ),
               MetricTile(
                 label: 'Skin temp Δ',
                 value: day.skinTempDeviation == null
                     ? '—'
                     : '${day.skinTempDeviation!.toStringAsFixed(2)}°',
-                accent: OpenAirColors.strain,
+                accent: colors.strain,
               ),
             ],
           ),

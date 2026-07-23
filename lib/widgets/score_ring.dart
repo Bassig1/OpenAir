@@ -24,6 +24,7 @@ class ScoreRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final progress = max <= 0 ? 0.0 : (value / max).clamp(0.0, 1.0);
     return SizedBox(
       width: size,
@@ -33,7 +34,11 @@ class ScoreRing extends StatelessWidget {
             width: size,
             height: size,
             child: CustomPaint(
-              painter: _RingPainter(progress: progress, color: color),
+              painter: _RingPainter(
+                progress: progress,
+                color: color,
+                trackColor: colors.border,
+              ),
               child: Center(
                 child: Text(
                   value % 1 == 0
@@ -41,7 +46,7 @@ class ScoreRing extends StatelessWidget {
                       : value.toStringAsFixed(1),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: OpenAirColors.textPrimary,
+                        color: colors.textPrimary,
                       ),
                 ),
               ),
@@ -62,7 +67,7 @@ class ScoreRing extends StatelessWidget {
               subtitle!,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: OpenAirColors.textSecondary,
+                    color: colors.textSecondary,
                   ),
             ),
           ],
@@ -73,17 +78,22 @@ class ScoreRing extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter({required this.progress, required this.color});
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+  });
 
   final double progress;
   final Color color;
+  final Color trackColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2 - 8;
     final track = Paint()
-      ..color = OpenAirColors.border
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10
       ..strokeCap = StrokeCap.round;
@@ -105,6 +115,8 @@ class _RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RingPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.color != color;
+    return oldDelegate.progress != progress ||
+        oldDelegate.color != color ||
+        oldDelegate.trackColor != trackColor;
   }
 }

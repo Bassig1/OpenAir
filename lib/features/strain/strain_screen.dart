@@ -12,6 +12,7 @@ class StrainScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
     final day = app.selectedDay;
     if (day == null) {
@@ -34,13 +35,13 @@ class StrainScreen extends StatelessWidget {
             (day.strainScore ?? 0).toStringAsFixed(1),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: OpenAirColors.strain,
+                  color: colors.strain,
                 ),
           ),
           Text(
             'Day strain · 0–21 scale',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: OpenAirColors.textSecondary,
+                  color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: 24),
@@ -59,13 +60,13 @@ class StrainScreen extends StatelessWidget {
               MetricTile(
                 label: 'Active cal',
                 value: '${day.activeCalories.round()}',
-                accent: OpenAirColors.strain,
+                accent: colors.strain,
               ),
               MetricTile(label: 'Active min', value: '${day.activeMinutes}'),
               MetricTile(
                 label: 'Zone min',
                 value: '${day.zoneMinutes}',
-                accent: OpenAirColors.strain,
+                accent: colors.strain,
               ),
               MetricTile(
                 label: 'Distance',
@@ -103,12 +104,12 @@ class StrainScreen extends StatelessWidget {
                 MetricTile(
                   label: 'Fat burn',
                   value: '${zones.fatBurnMinutes}m',
-                  accent: OpenAirColors.strain,
+                  accent: colors.strain,
                 ),
                 MetricTile(
                   label: 'Cardio',
                   value: '${zones.cardioMinutes}m',
-                  accent: OpenAirColors.heart,
+                  accent: colors.heart,
                 ),
                 MetricTile(
                   label: 'Peak',
@@ -153,8 +154,8 @@ class StrainScreen extends StatelessWidget {
                         }
                         return Text(
                           DateFormat('E').format(recent[i].date).substring(0, 1),
-                          style: const TextStyle(
-                            color: OpenAirColors.textMuted,
+                          style: TextStyle(
+                            color: colors.textMuted,
                             fontSize: 12,
                           ),
                         );
@@ -169,7 +170,7 @@ class StrainScreen extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: recent[i].strainScore ?? 0,
-                          color: OpenAirColors.strain,
+                          color: colors.strain,
                           width: 14,
                           borderRadius: BorderRadius.circular(6),
                         ),

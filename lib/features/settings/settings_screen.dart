@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
 
     return Scaffold(
@@ -38,36 +39,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           Text(
+            'Appearance',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Theme',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(
+                value: ThemeMode.system,
+                label: Text('System'),
+                icon: Icon(Icons.brightness_auto),
+              ),
+              ButtonSegment(
+                value: ThemeMode.light,
+                label: Text('Light'),
+                icon: Icon(Icons.light_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemeMode.dark,
+                label: Text('Dark'),
+                icon: Icon(Icons.dark_mode_outlined),
+              ),
+            ],
+            selected: {app.themeMode},
+            onSelectionChanged: (modes) => app.setThemeMode(modes.first),
+          ),
+          const Divider(height: 36),
+          Text(
             'Data source',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
             'Keep the official Fitbit app syncing your device. OpenAir reads the cloud copy through Google Health.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: OpenAirColors.textSecondary,
+                  color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: 16),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Use demo data'),
-            subtitle: const Text('Preview the Whoop-style UI without OAuth'),
+            title: Text(
+              'Use demo data',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+            subtitle: Text(
+              'Preview the Whoop-style UI without OAuth',
+              style: TextStyle(color: colors.textSecondary),
+            ),
             value: app.useDemoData,
-            activeThumbColor: OpenAirColors.recovery,
+            activeThumbColor: colors.green,
             onChanged: (v) => app.setUseDemoData(v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Live sync',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+            subtitle: Text(
+              'Poll every 2 minutes and refresh when the app resumes, when Google Health is connected.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            value: app.liveSyncEnabled,
+            activeThumbColor: colors.green,
+            onChanged: (v) => app.setLiveSyncEnabled(v),
           ),
           const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
               app.googleConnected ? 'Google Health connected' : 'Connect Google Health',
+              style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
               app.accountEmail ??
                   'Sign in with the Google account linked to Fitbit',
+              style: TextStyle(color: colors.textSecondary),
             ),
             trailing: app.googleConnected
                 ? TextButton(
@@ -85,14 +146,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Paired devices',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
                   ),
             ),
             ...app.devices.map(
               (d) => ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.watch),
-                title: Text(d.name),
-                subtitle: Text(d.model ?? 'Fitbit / Google wearable'),
+                title: Text(
+                  d.name,
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+                subtitle: Text(
+                  d.model ?? 'Fitbit / Google wearable',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
               ),
             ),
           ],
@@ -100,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               'Last sync: ${app.lastSyncedAt}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: OpenAirColors.textMuted,
+                    color: colors.textMuted,
                   ),
             ),
           const Divider(height: 36),
@@ -108,13 +176,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Gemini Coach',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
             'Create a free API key at aistudio.google.com and paste it here. Stored only on this device.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: OpenAirColors.textSecondary,
+                  color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: 12),
@@ -153,6 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'About',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
                 ),
           ),
           const SizedBox(height: 8),
@@ -160,7 +230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'OpenAir is a personal Fitbit companion with a Whoop-inspired recovery UI. '
             'Scores are OpenAir heuristics. Not affiliated with Whoop or Fitbit/Google.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: OpenAirColors.textSecondary,
+                  color: colors.textSecondary,
                   height: 1.4,
                 ),
           ),
@@ -169,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text(
               app.errorMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: OpenAirColors.heart,
+                    color: colors.heart,
                   ),
             ),
           ],

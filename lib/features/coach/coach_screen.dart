@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_controller.dart';
@@ -33,6 +32,7 @@ class _CoachScreenState extends State<CoachScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
     final hasKey = (app.geminiApiKey ?? '').isNotEmpty;
 
@@ -45,26 +45,22 @@ class _CoachScreenState extends State<CoachScreen> {
             onPressed: app.clearChat,
             icon: const Icon(Icons.delete_outline),
           ),
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: () => context.push('/settings'),
-            icon: const Icon(Icons.settings_outlined),
-          ),
         ],
       ),
       body: Column(
         children: [
           if (!hasKey)
-            MaterialBanner(
-              content: const Text(
-                'Add a free Gemini API key in Settings to ask questions about your recovery, sleep, and strain.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => context.push('/settings'),
-                  child: const Text('Settings'),
+            Material(
+              color: colors.surfaceElevated,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Text(
+                  'Add a Gemini API key in Settings (open from the Home / Today tab) to ask about recovery, sleep, and strain.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.textSecondary,
+                      ),
                 ),
-              ],
+              ),
             ),
           Expanded(
             child: app.chat.isEmpty
@@ -82,7 +78,7 @@ class _CoachScreenState extends State<CoachScreen> {
                       Text(
                         'Answers use your recent OpenAir metrics as context.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: OpenAirColors.textSecondary,
+                              color: colors.textSecondary,
                             ),
                       ),
                       const SizedBox(height: 20),
@@ -127,10 +123,10 @@ class _CoachScreenState extends State<CoachScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isUser
-                                ? OpenAirColors.surfaceElevated
-                                : OpenAirColors.surface,
+                                ? colors.surfaceElevated
+                                : colors.surface,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: OpenAirColors.border),
+                            border: Border.all(color: colors.border),
                           ),
                           child: Text(msg.text),
                         ),
@@ -160,7 +156,7 @@ class _CoachScreenState extends State<CoachScreen> {
                   IconButton.filled(
                     onPressed: !hasKey || _sending ? null : () => _send(app),
                     style: IconButton.styleFrom(
-                      backgroundColor: OpenAirColors.recovery,
+                      backgroundColor: colors.green,
                       foregroundColor: Colors.black,
                     ),
                     icon: _sending

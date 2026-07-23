@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -14,14 +15,43 @@ class TodayScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppController>();
     final day = app.selectedDay;
+    final colors = OpenAirColors.of(context);
 
     return RefreshIndicator(
-      color: OpenAirColors.recovery,
+      color: colors.green,
       onRefresh: app.refresh,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          const SliverAppBar(pinned: true, title: Text('OpenAir')),
+          SliverAppBar(
+            pinned: true,
+            title: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    'assets/branding/icon.png',
+                    width: 28,
+                    height: 28,
+                    errorBuilder: (_, error, stackTrace) => Icon(
+                      Icons.favorite,
+                      color: colors.green,
+                      size: 26,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text('OpenAir'),
+              ],
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Settings',
+                onPressed: () => context.push('/settings'),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
@@ -33,10 +63,25 @@ class TodayScreen extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(
+                          children: [
+                            LiveBadge(live: app.isLive, syncing: app.syncing),
+                            const Spacer(),
+                            if (app.lastSyncedAt != null)
+                              Text(
+                                'Updated ${DateFormat.jm().format(app.lastSyncedAt!)}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: colors.textMuted),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
                         Text(
                           DateFormat('EEEE, MMM d').format(day.date),
                           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: OpenAirColors.textSecondary,
+                                color: colors.textSecondary,
                               ),
                         ),
                         const SizedBox(height: 6),
@@ -49,11 +94,11 @@ class TodayScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          app.useDemoData
-                              ? 'Demo data — connect Google Health in Settings for live Fitbit numbers.'
-                              : 'Live Fitbit cloud data via Google Health${app.lastSyncedAt == null ? '' : ' · synced ${DateFormat.jm().format(app.lastSyncedAt!)}'}.',
+                          app.isLive
+                              ? 'Live Google Health sync (same Fitbit cloud feed as the Health app). Pull to refresh anytime.'
+                              : 'Demo mode — connect Google Health in Settings for live Fitbit data.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: OpenAirColors.textMuted,
+                                color: colors.textMuted,
                               ),
                         ),
                         if (app.errorMessage != null) ...[
@@ -63,7 +108,7 @@ class TodayScreen extends StatelessWidget {
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
-                                ?.copyWith(color: OpenAirColors.heart),
+                                ?.copyWith(color: colors.heart),
                           ),
                         ],
                         const SizedBox(height: 22),
@@ -80,21 +125,21 @@ class TodayScreen extends StatelessWidget {
                               label: 'Recovery',
                               value: day.recoveryScore ?? 0,
                               max: 100,
-                              color: OpenAirColors.recovery,
+                              color: colors.green,
                               subtitle: _recoveryLabel(day.recoveryScore ?? 0),
                             ),
                             ScoreRing(
                               label: 'Strain',
                               value: day.strainScore ?? 0,
                               max: 21,
-                              color: OpenAirColors.strain,
+                              color: colors.strain,
                               subtitle: '0–21 load',
                             ),
                             ScoreRing(
                               label: 'Sleep',
                               value: day.sleepScore ?? 0,
                               max: 100,
-                              color: OpenAirColors.sleep,
+                              color: colors.sleep,
                               subtitle: formatMinutes(day.sleepMinutes),
                             ),
                           ],
@@ -107,31 +152,31 @@ class TodayScreen extends StatelessWidget {
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: OpenAirColors.surface,
+                              color: colors.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: OpenAirColors.border),
+                              border: Border.all(color: colors.border),
                             ),
                             child: Column(
                               children: [
                                 ContributionBar(
                                   label: 'Sleep',
                                   value: day.recoveryBreakdown!.sleepContribution,
-                                  color: OpenAirColors.sleep,
+                                  color: colors.sleep,
                                 ),
                                 ContributionBar(
                                   label: 'HRV',
                                   value: day.recoveryBreakdown!.hrvContribution,
-                                  color: OpenAirColors.recovery,
+                                  color: colors.green,
                                 ),
                                 ContributionBar(
                                   label: 'Resting HR',
                                   value: day.recoveryBreakdown!.rhrContribution,
-                                  color: OpenAirColors.heart,
+                                  color: colors.heart,
                                 ),
                                 ContributionBar(
                                   label: 'SpO₂',
                                   value: day.recoveryBreakdown!.spo2Contribution,
-                                  color: OpenAirColors.spo2,
+                                  color: colors.spo2,
                                 ),
                               ],
                             ),
@@ -151,7 +196,7 @@ class TodayScreen extends StatelessWidget {
                             MetricTile(
                               label: 'Needed',
                               value: formatMinutes(day.sleepNeededMinutes ?? 480),
-                              accent: OpenAirColors.sleep,
+                              accent: colors.sleep,
                             ),
                             MetricTile(
                               label: 'Debt',
@@ -161,7 +206,7 @@ class TodayScreen extends StatelessWidget {
                               hint: (day.sleepDebtMinutes ?? 0) >= 0
                                   ? 'behind'
                                   : 'ahead',
-                              accent: OpenAirColors.strain,
+                              accent: colors.strain,
                             ),
                           ],
                         ),
@@ -181,31 +226,32 @@ class TodayScreen extends StatelessWidget {
                               value: day.restingHeartRate == null
                                   ? '—'
                                   : '${day.restingHeartRate!.round()} bpm',
-                              accent: OpenAirColors.heart,
+                              accent: colors.heart,
                             ),
                             MetricTile(
                               label: 'HRV',
                               value: day.hrvMs == null
                                   ? '—'
                                   : '${day.hrvMs!.round()} ms',
-                              accent: OpenAirColors.recovery,
+                              accent: colors.green,
                             ),
                             MetricTile(
                               label: 'SpO₂',
                               value: day.spo2Percent == null
                                   ? '—'
                                   : '${day.spo2Percent!.toStringAsFixed(1)}%',
-                              accent: OpenAirColors.spo2,
+                              accent: colors.spo2,
                             ),
                             MetricTile(
                               label: 'Steps',
-                              value: NumberFormat.decimalPattern().format(day.steps),
-                              accent: OpenAirColors.strain,
+                              value: NumberFormat.decimalPattern()
+                                  .format(day.steps),
+                              accent: colors.green,
                             ),
                             MetricTile(
                               label: 'Zone min',
                               value: '${day.zoneMinutes}',
-                              accent: OpenAirColors.strain,
+                              accent: colors.strain,
                             ),
                             MetricTile(
                               label: 'Resp. rate',
@@ -213,7 +259,7 @@ class TodayScreen extends StatelessWidget {
                                   ? '—'
                                   : day.respiratoryRate!.toStringAsFixed(1),
                               hint: 'br/min',
-                              accent: OpenAirColors.sleep,
+                              accent: colors.sleep,
                             ),
                           ],
                         ),
@@ -225,10 +271,9 @@ class TodayScreen extends StatelessWidget {
                         ],
                         const SizedBox(height: 20),
                         Text(
-                          'OpenAir scores are transparent heuristics from Fitbit cloud metrics. '
-                          'Raw vitals aim to match Google Health / Fitbit reconciled wearable data.',
+                          'OpenAir polls Google Health every 2 minutes while open (and on resume) so vitals stay as current as Fitbit’s cloud sync allows.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: OpenAirColors.textSecondary,
+                                color: colors.textSecondary,
                                 height: 1.4,
                               ),
                         ),

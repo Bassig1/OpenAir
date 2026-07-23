@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 
 import '../data/gemini/gemini_coach.dart';
 import '../data/health/demo_health_repository.dart';
@@ -8,7 +10,7 @@ import '../domain/models/day_summary.dart';
 import '../domain/models/health_extras.dart';
 import '../domain/scores/score_engine.dart';
 
-class AppController extends ChangeNotifier {
+class AppController extends ChangeNotifier with WidgetsBindingObserver {
   AppController({
     SettingsStore? settings,
     DemoHealthRepository? demoRepo,
@@ -27,6 +29,8 @@ class AppController extends ChangeNotifier {
   final ScoreEngine _scoreEngine;
   final GeminiCoach _coach;
 
+  static const livePollInterval = Duration(minutes: 2);
+
   List<DaySummary> days = const [];
   List<ChatMessage> chat = const [];
   List<PairedDeviceInfo> devices = const [];
@@ -36,10 +40,14 @@ class AppController extends ChangeNotifier {
   bool syncing = false;
   bool useDemoData = true;
   bool googleConnected = false;
+  bool liveSyncEnabled = true;
+  ThemeMode themeMode = ThemeMode.system;
   String? geminiApiKey;
   String? errorMessage;
   String? accountEmail;
   DateTime? lastSyncedAt;
+
+  Timer? _liveTimer;
 
   DaySummary? get selectedDay {
     if (days.isEmpty) return null;
@@ -49,11 +57,16 @@ class AppController extends ChangeNotifier {
 
   DaySummary? get today => days.isEmpty ? null : days.last;
 
+  bool get isLive => !useDemoData && googleConnected;
+
   Future<void> bootstrap() async {
+    WidgetsBinding.instance.addObserver(this);
     try {
       useDemoData = await _settings.getUseDemoData();
       geminiApiKey = await _settings.getGeminiApiKey();
       googleConnected = await _settings.getGoogleConnectedFlag();
+      liveSyncEnabled = await _settings.getLiveSyncEnabled();
+      themeMode = await _settings.getThemeMode();
     } catch (_) {
       useDemoData = true;
     }
@@ -68,6 +81,29 @@ class AppController extends ChangeNotifier {
     } catch (_) {}
 
     await refresh();
+    _restartLiveTimer();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && isLive && liveSyncEnabled) {
+      unawaited(refresh(silent: true));
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _liveTimer?.cancel();
+    super.dispose();
+  }
+
+  void _restartLiveTimer() {
+    _liveTimer?.cancel();
+    if (!isLive || !liveSyncEnabled) return;
+    _liveTimer = Timer.periodic(livePollInterval, (_) {
+      unawaited(refresh(silent: true));
+    });
   }
 
   void selectDay(int index) {
@@ -76,20 +112,19 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectDayByDate(DateTime date) {
-    final i = days.indexWhere(
-      (d) =>
-          d.date.year == date.year &&
-          d.date.month == date.month &&
-          d.date.day == date.day,
-    );
-    if (i >= 0) selectDay(i);
-  }
+  Future<void> refresh({bool silent = false}) async {
+    if (!silent) {
+      syncing = true;
+      errorMessage = null;
+      notifyListeners();
+    } else if (syncing) {
+      return;
+    } else {
+      syncing = true;
+      notifyListeners();
+    }
 
-  Future<void> refresh() async {
-    syncing = true;
-    errorMessage = null;
-    notifyListeners();
+    final previousSelected = selectedDay?.date;
     try {
       if (useDemoData || !googleConnected) {
         final bundle = await _demoRepo.loadBundle();
@@ -102,9 +137,20 @@ class AppController extends ChangeNotifier {
         body = bundle.body;
         devices = bundle.devices;
       }
-      selectedIndex = days.isEmpty ? 0 : days.length - 1;
+      if (previousSelected != null) {
+        final i = days.indexWhere(
+          (d) =>
+              d.date.year == previousSelected.year &&
+              d.date.month == previousSelected.month &&
+              d.date.day == previousSelected.day,
+        );
+        selectedIndex = i >= 0 ? i : (days.isEmpty ? 0 : days.length - 1);
+      } else {
+        selectedIndex = days.isEmpty ? 0 : days.length - 1;
+      }
       lastSyncedAt = DateTime.now();
       loading = false;
+      errorMessage = null;
     } catch (e) {
       errorMessage = e.toString();
       if (days.isEmpty) {
@@ -119,6 +165,7 @@ class AppController extends ChangeNotifier {
     } finally {
       syncing = false;
       notifyListeners();
+      _restartLiveTimer();
     }
   }
 
@@ -127,6 +174,21 @@ class AppController extends ChangeNotifier {
     await _settings.setUseDemoData(value);
     notifyListeners();
     await refresh();
+    _restartLiveTimer();
+  }
+
+  Future<void> setLiveSyncEnabled(bool value) async {
+    liveSyncEnabled = value;
+    await _settings.setLiveSyncEnabled(value);
+    notifyListeners();
+    _restartLiveTimer();
+    if (value && isLive) await refresh(silent: true);
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode = mode;
+    await _settings.setThemeMode(mode);
+    notifyListeners();
   }
 
   Future<void> connectGoogle() async {
@@ -141,6 +203,7 @@ class AppController extends ChangeNotifier {
       await _settings.setGoogleConnectedFlag(true);
       await _settings.setUseDemoData(false);
       await refresh();
+      _restartLiveTimer();
     } catch (e) {
       errorMessage =
           'Google Health sign-in failed. Check Cloud OAuth setup in README.\n$e';
@@ -157,6 +220,7 @@ class AppController extends ChangeNotifier {
     await _settings.setUseDemoData(true);
     notifyListeners();
     await refresh();
+    _restartLiveTimer();
   }
 
   Future<void> saveGeminiKey(String? key) async {

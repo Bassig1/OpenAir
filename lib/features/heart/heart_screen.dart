@@ -12,6 +12,7 @@ class HeartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
     final day = app.selectedDay;
     if (day == null) {
@@ -42,13 +43,13 @@ class HeartScreen extends StatelessWidget {
                     ? '—'
                     : '${day.restingHeartRate!.round()}',
                 hint: 'bpm',
-                accent: OpenAirColors.heart,
+                accent: colors.heart,
               ),
               MetricTile(
                 label: 'HRV',
                 value: day.hrvMs == null ? '—' : '${day.hrvMs!.round()}',
                 hint: 'ms',
-                accent: OpenAirColors.recovery,
+                accent: colors.green,
               ),
               MetricTile(
                 label: 'Avg HR',
@@ -63,7 +64,7 @@ class HeartScreen extends StatelessWidget {
                     ? '—'
                     : day.spo2Percent!.toStringAsFixed(1),
                 hint: '%',
-                accent: OpenAirColors.spo2,
+                accent: colors.spo2,
               ),
               MetricTile(
                 label: 'VO₂ max',
@@ -72,7 +73,7 @@ class HeartScreen extends StatelessWidget {
                         ? '—'
                         : body!.vo2Max!.toStringAsFixed(1))
                     : day.vo2Max!.toStringAsFixed(1),
-                accent: OpenAirColors.recovery,
+                accent: colors.green,
               ),
               MetricTile(
                 label: 'Max HR',
@@ -80,7 +81,7 @@ class HeartScreen extends StatelessWidget {
                     ? '—'
                     : '${day.maxHeartRate!.round()}',
                 hint: 'bpm',
-                accent: OpenAirColors.heart,
+                accent: colors.heart,
               ),
             ],
           ),
@@ -116,7 +117,7 @@ class HeartScreen extends StatelessWidget {
                 child: Text(
                   'Measured ${DateFormat.yMMMd().format(body.measuredAt!)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: OpenAirColors.textMuted,
+                        color: colors.textMuted,
                       ),
                 ),
               ),
@@ -135,7 +136,7 @@ class HeartScreen extends StatelessWidget {
                         show: true,
                         drawVerticalLine: false,
                         getDrawingHorizontalLine: (value) => FlLine(
-                          color: OpenAirColors.border.withValues(alpha: 0.6),
+                          color: colors.border.withValues(alpha: 0.6),
                           strokeWidth: 1,
                         ),
                       ),
@@ -160,12 +161,12 @@ class HeartScreen extends StatelessWidget {
                       lineBarsData: [
                         LineChartBarData(
                           isCurved: true,
-                          color: OpenAirColors.heart,
+                          color: colors.heart,
                           barWidth: 2.5,
                           dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: OpenAirColors.heart.withValues(alpha: 0.12),
+                            color: colors.heart.withValues(alpha: 0.12),
                           ),
                           spots: [
                             for (var i = 0; i < samples.length; i++)
@@ -192,7 +193,7 @@ class HeartScreen extends StatelessWidget {
                   lineBarsData: [
                     LineChartBarData(
                       isCurved: true,
-                      color: OpenAirColors.spo2,
+                      color: colors.spo2,
                       barWidth: 2.5,
                       dotData: const FlDotData(show: false),
                       spots: [
