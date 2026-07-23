@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/health/google_health_client.dart';
+import '../../features/profile/profile_screen.dart';
 import '../../state/app_controller.dart';
 import '../../theme/openair_theme.dart';
 
@@ -45,6 +46,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          const Divider(height: 36),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Body profile',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+            subtitle: Text(
+              app.profile.isComplete
+                  ? 'Age ${app.profile.ageYears} · ${app.effectiveBody.weightKg?.toStringAsFixed(1) ?? '—'} kg · ${app.effectiveBody.heightCm?.toStringAsFixed(0) ?? '—'} cm'
+                  : 'Add age, weight, height for personalized scores',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+          ),
+          const Divider(height: 36),
           Text(
             'Appearance',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(

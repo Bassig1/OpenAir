@@ -14,6 +14,8 @@ class MoreScreen extends StatelessWidget {
     context.watch<AppController>();
 
     final items = [
+      _MoreItem('Body profile', 'Age, weight, height, sex', Icons.person_outline, '/profile', colors.green),
+      _MoreItem('Trends', 'Daily / week / month recovery, sleep, HRV', Icons.show_chart, '/trends', colors.sleep),
       _MoreItem('Workouts', 'Logged sessions + full activity catalog', Icons.fitness_center, '/workouts', colors.strain),
       _MoreItem('Weekly Report', 'Weekly performance and recovery report', Icons.insights, '/weekly', colors.green),
       _MoreItem('Stress & Readiness', 'Stress load + daily readiness', Icons.spa_outlined, '/stress', colors.sleep),

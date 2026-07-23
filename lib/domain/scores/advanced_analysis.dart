@@ -1,11 +1,18 @@
+import 'dart:math' as math;
+
 import '../models/day_summary.dart';
 import '../models/health_extras.dart';
+import '../models/user_profile.dart';
 
 /// Advanced recovery analysis derived from wearable cloud metrics.
 class AdvancedAnalysis {
   const AdvancedAnalysis();
 
-  SleepAnalysis sleep(DaySummary day) {
+  SleepAnalysis sleep(
+    DaySummary day, {
+    UserProfile profile = UserProfile.empty,
+    List<DaySummary> history = const [],
+  }) {
     final asleep = day.deepSleepMinutes +
         day.remSleepMinutes +
         day.lightSleepMinutes;
@@ -16,6 +23,20 @@ class AdvancedAnalysis {
     final restorative = day.deepSleepMinutes + day.remSleepMinutes;
     final restorativePct =
         asleep <= 0 ? 0.0 : (restorative / asleep * 100).clamp(0.0, 100.0);
+    final need = day.sleepNeededMinutes ?? profile.sleepNeedBaselineMinutes;
+    // Primary sleep performance (hours asleep vs need), capped at 100.
+    final hoursVsNeed =
+        need <= 0 ? 0.0 : (day.sleepMinutes / need * 100).clamp(0.0, 100.0);
+    final consistency = _sleepConsistency(day, history);
+    // Composite mirrors multi-factor coaching: duration + efficiency + stages + consistency.
+    final performance = double.parse(
+      ((hoursVsNeed * 0.55) +
+              (efficiency * 0.20) +
+              (restorativePct * 0.15) +
+              (consistency * 0.10))
+          .clamp(0.0, 100.0)
+          .toStringAsFixed(1),
+    );
     return SleepAnalysis(
       efficiencyPercent: double.parse(efficiency.toStringAsFixed(1)),
       restorativeMinutes: restorative,
@@ -36,23 +57,44 @@ class AdvancedAnalysis {
               ((day.lightSleepMinutes / asleep) * 100).toStringAsFixed(1),
             ),
       disturbanceCount: (day.awakeMinutes / 8).round().clamp(0, 30),
-      performance: day.sleepScore ?? 0,
-      neededMinutes: day.sleepNeededMinutes ?? 480,
-      debtMinutes: day.sleepDebtMinutes ?? 0,
-      consistencyLabel: efficiency >= 90
+      performance: performance,
+      hoursVsNeedPercent: double.parse(hoursVsNeed.toStringAsFixed(1)),
+      consistencyPercent: double.parse(consistency.toStringAsFixed(1)),
+      neededMinutes: need,
+      debtMinutes: day.sleepDebtMinutes ?? (need - day.sleepMinutes),
+      consistencyLabel: consistency >= 85
           ? 'Excellent consistency'
-          : efficiency >= 80
+          : consistency >= 70
               ? 'Solid overnight consistency'
-              : efficiency >= 70
-                  ? 'Fair — fragmented overnight'
-                  : 'Poor continuity — prioritize wind-down',
+              : consistency >= 55
+                  ? 'Fair — schedule drifting'
+                  : 'Poor continuity — stabilize bedtime',
       summary: _sleepSummary(
         day: day,
         efficiency: efficiency,
         restorativePct: restorativePct,
         asleep: asleep,
+        hoursVsNeed: hoursVsNeed,
+        performance: performance,
       ),
     );
+  }
+
+  double _sleepConsistency(DaySummary day, List<DaySummary> history) {
+    final recent = [
+      ...history.where((d) => d.sleepMinutes > 0).map((d) => d.sleepMinutes),
+      if (day.sleepMinutes > 0) day.sleepMinutes,
+    ];
+    if (recent.length < 2) return 75;
+    final avg = recent.reduce((a, b) => a + b) / recent.length;
+    final variance = recent
+            .map((m) => (m - avg) * (m - avg))
+            .reduce((a, b) => a + b) /
+        recent.length;
+    final std = variance <= 0 ? 0.0 : math.sqrt(variance);
+    // Lower variance → higher consistency. ~45 min std ≈ mid score.
+    final score = (100 - (std / 60 * 55)).clamp(20.0, 100.0);
+    return score;
   }
 
   String _sleepSummary({
@@ -60,6 +102,8 @@ class AdvancedAnalysis {
     required double efficiency,
     required double restorativePct,
     required int asleep,
+    required double hoursVsNeed,
+    required double performance,
   }) {
     final hrs = day.sleepMinutes ~/ 60;
     final mins = day.sleepMinutes % 60;
@@ -69,8 +113,9 @@ class AdvancedAnalysis {
         : debt <= -15
             ? ' Banked ~${(-debt)}m.'
             : '';
-    return '${hrs}h ${mins.toString().padLeft(2, '0')}m asleep · '
-        'perf ${(day.sleepScore ?? 0).toStringAsFixed(0)} · '
+    return 'Sleep performance ${performance.toStringAsFixed(0)}% · '
+        'hours vs need ${hoursVsNeed.toStringAsFixed(0)}% · '
+        '${hrs}h ${mins.toString().padLeft(2, '0')}m · '
         'eff ${efficiency.toStringAsFixed(0)}% · '
         'restorative ${restorativePct.toStringAsFixed(0)}% '
         '(deep ${day.deepSleepMinutes}m / REM ${day.remSleepMinutes}m).'
@@ -302,6 +347,8 @@ class SleepAnalysis {
     required this.lightPercent,
     required this.disturbanceCount,
     required this.performance,
+    required this.hoursVsNeedPercent,
+    required this.consistencyPercent,
     required this.neededMinutes,
     required this.debtMinutes,
     required this.consistencyLabel,
@@ -316,6 +363,8 @@ class SleepAnalysis {
   final double lightPercent;
   final int disturbanceCount;
   final double performance;
+  final double hoursVsNeedPercent;
+  final double consistencyPercent;
   final int neededMinutes;
   final int debtMinutes;
   final String consistencyLabel;

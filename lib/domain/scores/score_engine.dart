@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../models/day_summary.dart';
 import '../models/health_extras.dart';
+import '../models/user_profile.dart';
 
 /// OpenAir recovery and strain scoring.
 /// Transparent heuristics — not proprietary third-party algorithms.
@@ -10,18 +11,22 @@ class ScoreEngine {
 
   static const baselineSleepNeedMinutes = 8 * 60;
 
-  List<DaySummary> scoreDays(List<DaySummary> days) {
+  List<DaySummary> scoreDays(
+    List<DaySummary> days, {
+    UserProfile profile = UserProfile.empty,
+  }) {
     if (days.isEmpty) return days;
     final sorted = [...days]..sort((a, b) => a.date.compareTo(b.date));
     final scored = <DaySummary>[];
     var rollingDebt = 0;
+    final baselineNeed = profile.sleepNeedBaselineMinutes;
 
     for (var i = 0; i < sorted.length; i++) {
       final day = sorted[i];
       final history = sorted.sublist(0, i + 1);
-      final sleepScore = _sleepScore(day);
-      final strain = _strainScore(day);
-      final need = _sleepNeededMinutes(day, history, strain);
+      final sleepScore = _sleepScore(day, baselineNeed);
+      final strain = _strainScore(day, profile);
+      final need = _sleepNeededMinutes(day, history, strain, baselineNeed);
       rollingDebt = (rollingDebt + (need - day.sleepMinutes)).clamp(-180, 480);
       final breakdown = _recoveryBreakdown(day, history, sleepScore, need);
       final recovery = _recoveryFromBreakdown(breakdown);
@@ -171,8 +176,8 @@ class ScoreEngine {
     ),
   ];
 
-  double _sleepScore(DaySummary day) {
-    const needMinutes = baselineSleepNeedMinutes;
+  double _sleepScore(DaySummary day, int baselineNeed) {
+    final needMinutes = baselineNeed.toDouble();
     final durationRatio = (day.sleepMinutes / needMinutes).clamp(0.0, 1.15);
     final asSleep =
         (day.deepSleepMinutes + day.remSleepMinutes + day.lightSleepMinutes)
@@ -187,14 +192,16 @@ class ScoreEngine {
     );
   }
 
-  double _strainScore(DaySummary day) {
+  double _strainScore(DaySummary day, UserProfile profile) {
     final fromMinutes = (day.activeMinutes / 90) * 8;
     final fromZones = (day.zoneMinutes / 60) * 6;
     final fromCalories = (day.activeCalories / 700) * 4;
     final fromWorkouts = (day.exercises.length * 1.5).clamp(0.0, 4.0);
+    final maxHrCap = profile.estimatedMaxHeartRate ?? 190;
     final fromHr = day.maxHeartRate == null
         ? 0.0
-        : (((day.maxHeartRate! - 100) / 80) * 4).clamp(0.0, 4.0);
+        : (((day.maxHeartRate! - 100) / (maxHrCap - 100).clamp(40, 120)) * 4)
+            .clamp(0.0, 4.0);
     final zones = day.heartRateZones;
     final fromPeak = zones == null ? 0.0 : (zones.peakMinutes / 20) * 2;
     return double.parse(
@@ -208,6 +215,7 @@ class ScoreEngine {
     DaySummary day,
     List<DaySummary> history,
     double strain,
+    int baselineNeed,
   ) {
     final strainBoost = (strain / 21 * 75).round();
     final recentSleep = history.length < 3
@@ -218,8 +226,8 @@ class ScoreEngine {
                     .reduce((a, b) => a + b) /
                 3)
             .round();
-    final baseline = ((baselineSleepNeedMinutes + recentSleep) / 2).round();
-    return (baseline + strainBoost - 30).clamp(6 * 60, 10 * 60);
+    final debtBoost = recentSleep < baselineNeed - 45 ? 20 : 0;
+    return (baselineNeed + strainBoost + debtBoost).clamp(6 * 60, 10 * 60);
   }
 
   RecoveryBreakdown _recoveryBreakdown(

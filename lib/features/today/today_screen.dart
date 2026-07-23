@@ -262,6 +262,10 @@ class TodayScreen extends StatelessWidget {
                               onPressed: () => context.push('/workouts'),
                             ),
                             ActionChip(
+                              label: const Text('Trends'),
+                              onPressed: () => context.push('/trends'),
+                            ),
+                            ActionChip(
                               label: const Text('Weekly'),
                               onPressed: () => context.push('/weekly'),
                             ),

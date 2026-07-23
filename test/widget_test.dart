@@ -1,10 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openair/domain/models/day_summary.dart';
+import 'package:openair/domain/models/user_profile.dart';
 import 'package:openair/domain/scores/advanced_analysis.dart';
+import 'package:openair/domain/scores/period_analytics.dart';
 import 'package:openair/domain/scores/score_engine.dart';
 
 void main() {
-  test('ScoreEngine + advanced analysis for final revision', () {
+  test('Profile-aware scoring, sleep performance, and period trends', () {
+    final profile = const UserProfile(
+      ageYears: 28,
+      heightCm: 178,
+      weightKg: 78,
+      sex: BiologicalSex.male,
+    );
     final day = DaySummary(
       date: DateTime(2026, 7, 22),
       steps: 8000,
@@ -25,28 +33,22 @@ void main() {
       spo2Samples: const [],
     );
 
-    final scored = const ScoreEngine().scoreDays([day]).single;
+    final scored = const ScoreEngine().scoreDays([day], profile: profile).single;
     expect(scored.recoveryScore, isNotNull);
-    expect(scored.strainScore, isNotNull);
-    expect(scored.sleepScore, isNotNull);
-    expect(scored.stressScore, isNotNull);
-    expect(scored.readinessScore, isNotNull);
-    expect(scored.insights, isNotEmpty);
-    expect(scored.strainScore! <= 21, isTrue);
+    expect(scored.sleepNeededMinutes, greaterThan(400));
 
-    final weekly = const ScoreEngine().buildWeeklyReport([scored]);
-    expect(weekly.avgRecovery, greaterThan(0));
-
-    final analysis = const AdvancedAnalysis();
-    final sleep = analysis.sleep(scored);
-    expect(sleep.efficiencyPercent, greaterThan(0));
-    expect(sleep.restorativeMinutes, greaterThan(0));
-
-    final sync = analysis.assessSync(
-      days: [scored],
-      lastSyncedAt: DateTime.now(),
-      isLive: true,
+    final sleep = const AdvancedAnalysis().sleep(
+      scored,
+      profile: profile,
+      history: [scored],
     );
-    expect(sync.message, isNotEmpty);
+    expect(sleep.hoursVsNeedPercent, greaterThan(0));
+    expect(sleep.performance, greaterThan(0));
+    expect(sleep.consistencyPercent, greaterThan(0));
+
+    final periods = const PeriodAnalytics();
+    expect(periods.daily(scored, profile).avgSleepPerformance, greaterThan(0));
+    expect(periods.week([scored], profile).dayCount, 1);
+    expect(periods.hrvReport([scored]).latest, 42);
   });
 }

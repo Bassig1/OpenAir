@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -12,7 +13,9 @@ import '../data/local/settings_store.dart';
 import '../data/local/workout_store.dart';
 import '../domain/models/day_summary.dart';
 import '../domain/models/health_extras.dart';
+import '../domain/models/user_profile.dart';
 import '../domain/scores/advanced_analysis.dart';
+import '../domain/scores/period_analytics.dart';
 import '../domain/scores/score_engine.dart';
 
 class ActiveWorkout {
@@ -55,14 +58,17 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final WorkoutStore _workoutStore;
   final NotificationService _notifications;
   final AdvancedAnalysis _analysis = const AdvancedAnalysis();
+  final PeriodAnalytics _periods = const PeriodAnalytics();
 
   static const livePollInterval = Duration(minutes: 1);
+  static const syncDayWindow = 30;
 
   List<DaySummary> days = const [];
   List<ChatMessage> chat = const [];
   List<PairedDeviceInfo> devices = const [];
   List<ExerciseSession> manualWorkouts = const [];
   BodySnapshot? body;
+  UserProfile profile = UserProfile.empty;
   JournalEntry? todayJournal;
   ActiveWorkout? activeWorkout;
   int selectedIndex = 0;
@@ -94,6 +100,60 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   WeeklyReport get weeklyReport => _scoreEngine.buildWeeklyReport(days);
 
+  PeriodSummary get dailySummary {
+    final day = selectedDay;
+    if (day == null) {
+      final now = DateTime.now();
+      return PeriodSummary(
+        label: 'Daily',
+        start: now,
+        end: now,
+        dayCount: 0,
+        avgRecovery: 0,
+        avgStrain: 0,
+        avgSleepPerformance: 0,
+        avgSleepMinutes: 0,
+        avgHrv: null,
+        avgRhr: null,
+        avgReadiness: 0,
+        avgStress: 0,
+        totalSteps: 0,
+        totalWorkouts: 0,
+        hrvTrend: '—',
+        recoveryTrend: '—',
+        sleepTrend: '—',
+        summary: 'No day selected',
+      );
+    }
+    return _periods.daily(day, profile);
+  }
+
+  PeriodSummary get weekSummary => _periods.week(days, profile);
+
+  PeriodSummary get monthSummary => _periods.month(days, profile);
+
+  HrvTrendReport get hrvTrends => _periods.hrvReport(days);
+
+  List<TrendPoint> hrvSeries({int take = 30}) =>
+      _periods.hrvSeries(days, take: take);
+
+  List<TrendPoint> sleepPerfSeries({int take = 30}) =>
+      _periods.sleepPerformanceSeries(days, profile, take: take);
+
+  List<TrendPoint> recoverySeries({int take = 30}) =>
+      _periods.recoverySeries(days, take: take);
+
+  BodySnapshot get effectiveBody {
+    final cloud = body;
+    return BodySnapshot(
+      weightKg: profile.weightKg ?? cloud?.weightKg,
+      heightCm: profile.heightCm ?? cloud?.heightCm,
+      bodyFatPercent: cloud?.bodyFatPercent,
+      vo2Max: cloud?.vo2Max,
+      measuredAt: cloud?.measuredAt,
+    );
+  }
+
   List<GuidedProgram> get programs => ScoreEngine.guidedPrograms;
 
   List<InsightItem> get todaysInsights => selectedDay?.insights ?? const [];
@@ -107,7 +167,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   SleepAnalysis? get sleepAnalysis {
     final day = selectedDay;
     if (day == null) return null;
-    return _analysis.sleep(day);
+    return _analysis.sleep(day, profile: profile, history: days);
   }
 
   HeartbeatAnalysis? get heartbeatAnalysis {
@@ -141,6 +201,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       liveSyncEnabled = await _settings.getLiveSyncEnabled();
       alertsEnabled = await _settings.getAlertsEnabled();
       themeMode = await _settings.getThemeMode();
+      final profileJson = await _settings.getUserProfileJson();
+      if (profileJson != null && profileJson.trim().isNotEmpty) {
+        profile = UserProfile.fromJson(
+          jsonDecode(profileJson) as Map<String, dynamic>,
+        );
+      }
       manualWorkouts = await _workoutStore.loadAll();
       await _healthClient.configure(serverClientId: googleWebClientId);
       if (alertsEnabled) await _notifications.init();
@@ -233,7 +299,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
     final lastSleep = await _settings.getLastSleepNotifyYmd();
     if (day.sleepMinutes >= 180 && lastSleep != ymd) {
-      final summary = _analysis.sleep(day).summary;
+      final summary =
+          _analysis.sleep(day, profile: profile, history: days).summary;
       await _notifications.sleepSummary(summary: summary);
       await _settings.setLastSleepNotifyYmd(ymd);
     }
@@ -267,14 +334,18 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       manualWorkouts = await _workoutStore.loadAll();
       if (useDemoData || !googleConnected) {
-        final bundle = await _demoRepo.loadBundle();
-        days = _mergeManualWorkouts(_scoreEngine.scoreDays(bundle.days));
-        body = bundle.body;
+        final bundle = await _demoRepo.loadBundle(days: syncDayWindow);
+        days = _mergeManualWorkouts(
+          _scoreEngine.scoreDays(bundle.days, profile: profile),
+        );
+        body = _mergeBody(bundle.body);
         devices = bundle.devices;
       } else {
-        final bundle = await _healthClient.syncRecent();
-        days = _mergeManualWorkouts(_scoreEngine.scoreDays(bundle.days));
-        body = bundle.body;
+        final bundle = await _healthClient.syncRecent(days: syncDayWindow);
+        days = _mergeManualWorkouts(
+          _scoreEngine.scoreDays(bundle.days, profile: profile),
+        );
+        body = _mergeBody(bundle.body);
         devices = bundle.devices;
       }
       if (previousSelected != null) {
@@ -296,9 +367,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       errorMessage = e.toString();
       if (days.isEmpty) {
-        final bundle = await _demoRepo.loadBundle();
-        days = _mergeManualWorkouts(_scoreEngine.scoreDays(bundle.days));
-        body = bundle.body;
+        final bundle = await _demoRepo.loadBundle(days: syncDayWindow);
+        days = _mergeManualWorkouts(
+          _scoreEngine.scoreDays(bundle.days, profile: profile),
+        );
+        body = _mergeBody(bundle.body);
         devices = bundle.devices;
         selectedIndex = days.length - 1;
         useDemoData = true;
@@ -310,6 +383,28 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       _restartLiveTimer();
     }
+  }
+
+  BodySnapshot? _mergeBody(BodySnapshot? cloud) {
+    if (cloud == null &&
+        profile.weightKg == null &&
+        profile.heightCm == null) {
+      return null;
+    }
+    return BodySnapshot(
+      weightKg: profile.weightKg ?? cloud?.weightKg,
+      heightCm: profile.heightCm ?? cloud?.heightCm,
+      bodyFatPercent: cloud?.bodyFatPercent,
+      vo2Max: cloud?.vo2Max,
+      measuredAt: cloud?.measuredAt,
+    );
+  }
+
+  Future<void> saveProfile(UserProfile next) async {
+    profile = next;
+    await _settings.setUserProfileJson(jsonEncode(next.toJson()));
+    notifyListeners();
+    await refresh(silent: true);
   }
 
   Future<void> setUseDemoData(bool value) async {

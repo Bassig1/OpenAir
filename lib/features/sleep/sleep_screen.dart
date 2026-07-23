@@ -41,7 +41,7 @@ class SleepScreen extends StatelessWidget {
                 ),
           ),
           Text(
-            'Performance ${day.sleepScore?.toStringAsFixed(0) ?? '—'}  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? 480)}',
+            'Sleep performance ${app.sleepAnalysis?.performance.toStringAsFixed(0) ?? day.sleepScore?.toStringAsFixed(0) ?? '—'}%  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? app.profile.sleepNeedBaselineMinutes)}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -173,6 +173,23 @@ class SleepScreen extends StatelessWidget {
               childAspectRatio: 1.2,
               children: [
                 MetricTile(
+                  label: 'Performance',
+                  value: '${app.sleepAnalysis!.performance.toStringAsFixed(0)}%',
+                  hint: 'hours + quality composite',
+                  accent: colors.sleep,
+                ),
+                MetricTile(
+                  label: 'Hours vs need',
+                  value: '${app.sleepAnalysis!.hoursVsNeedPercent.toStringAsFixed(0)}%',
+                  hint: formatMinutes(app.sleepAnalysis!.neededMinutes),
+                  accent: colors.green,
+                ),
+                MetricTile(
+                  label: 'Consistency',
+                  value: '${app.sleepAnalysis!.consistencyPercent.toStringAsFixed(0)}%',
+                  hint: app.sleepAnalysis!.consistencyLabel,
+                ),
+                MetricTile(
                   label: 'Efficiency',
                   value: '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(1)}%',
                   hint: 'asleep / time in bed',
@@ -204,12 +221,6 @@ class SleepScreen extends StatelessWidget {
                   value: '${day.awakeMinutes}m',
                   hint: '~${app.sleepAnalysis!.disturbanceCount} disturbances',
                   accent: colors.heart,
-                ),
-                MetricTile(
-                  label: 'Performance',
-                  value: app.sleepAnalysis!.performance.toStringAsFixed(0),
-                  hint: '/100',
-                  accent: colors.sleep,
                 ),
                 MetricTile(
                   label: 'Debt',

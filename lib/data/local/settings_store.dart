@@ -13,6 +13,7 @@ class SettingsStore {
   static const _connectedKey = 'google_connected';
   static const _liveSyncKey = 'live_sync_enabled';
   static const _themeModeKey = 'theme_mode';
+  static const _profileKey = 'user_profile_json';
   static const _lastSleepNotifyKey = 'last_sleep_notify_ymd';
   static const _lastHrNotifyKey = 'last_hr_notify_ymd';
   static const _alertsEnabledKey = 'alerts_enabled';
@@ -89,6 +90,16 @@ class SettingsStore {
       ThemeMode.system => 'system',
     };
     await prefs.setString(_themeModeKey, value);
+  }
+
+  Future<String?> getUserProfileJson() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_profileKey);
+  }
+
+  Future<void> setUserProfileJson(String json) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_profileKey, json);
   }
 
   Future<bool> getAlertsEnabled() async {

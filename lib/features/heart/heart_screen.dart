@@ -20,7 +20,7 @@ class HeartScreen extends StatelessWidget {
     }
 
     final samples = day.heartSamples;
-    final body = app.body;
+    final body = app.effectiveBody;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Heart')),
@@ -71,6 +71,58 @@ class HeartScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
           ],
+          Builder(
+            builder: (context) {
+              final hrv = app.hrvTrends;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionHeader('HRV trends'),
+                  const SizedBox(height: 8),
+                  Text(
+                    hrv.summary,
+                    style: TextStyle(color: colors.textSecondary, height: 1.35),
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.35,
+                    children: [
+                      MetricTile(
+                        label: 'Today',
+                        value: hrv.latest?.toStringAsFixed(0) ?? '—',
+                        hint: 'ms',
+                        accent: colors.green,
+                      ),
+                      MetricTile(
+                        label: 'Week avg',
+                        value: hrv.weekAvg?.toStringAsFixed(0) ?? '—',
+                        hint: hrv.trendLabel,
+                      ),
+                      MetricTile(
+                        label: 'Month avg',
+                        value: hrv.monthAvg?.toStringAsFixed(0) ?? '—',
+                        hint: 'ms',
+                      ),
+                      MetricTile(
+                        label: 'Baseline',
+                        value: hrv.baseline?.toStringAsFixed(0) ?? '—',
+                        hint: hrv.weekDelta == null
+                            ? null
+                            : '${hrv.weekDelta! >= 0 ? '+' : ''}${hrv.weekDelta!.toStringAsFixed(0)} vs 7d',
+                        accent: colors.heart,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              );
+            },
+          ),
           if (app.oxygenAnalysis != null) ...[
             const SectionHeader('Blood oxygen analysis'),
             const SizedBox(height: 12),
@@ -151,9 +203,9 @@ class HeartScreen extends StatelessWidget {
               MetricTile(
                 label: 'VO₂ max',
                 value: day.vo2Max == null
-                    ? (body?.vo2Max == null
+                    ? (body.vo2Max == null
                         ? '—'
-                        : body!.vo2Max!.toStringAsFixed(1))
+                        : body.vo2Max!.toStringAsFixed(1))
                     : day.vo2Max!.toStringAsFixed(1),
                 accent: colors.green,
               ),
@@ -162,48 +214,59 @@ class HeartScreen extends StatelessWidget {
                 value: day.maxHeartRate == null
                     ? '—'
                     : '${day.maxHeartRate!.round()}',
-                hint: 'bpm',
+                hint: app.profile.estimatedMaxHeartRate == null
+                    ? 'bpm'
+                    : 'est max ${app.profile.estimatedMaxHeartRate!.round()}',
                 accent: colors.heart,
               ),
             ],
           ),
-          if (body != null) ...[
-            const SizedBox(height: 28),
-            const SectionHeader('Body'),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.35,
-              children: [
-                MetricTile(
-                  label: 'Weight',
-                  value: body.weightKg == null
-                      ? '—'
-                      : '${body.weightKg!.toStringAsFixed(1)} kg',
-                ),
-                MetricTile(
-                  label: 'Body fat',
-                  value: body.bodyFatPercent == null
-                      ? '—'
-                      : '${body.bodyFatPercent!.toStringAsFixed(1)}%',
-                ),
-              ],
-            ),
-            if (body.measuredAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Measured ${DateFormat.yMMMd().format(body.measuredAt!)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textMuted,
-                      ),
-                ),
+          const SizedBox(height: 28),
+          const SectionHeader('Body'),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.35,
+            children: [
+              MetricTile(
+                label: 'Weight',
+                value: body.weightKg == null
+                    ? '—'
+                    : '${body.weightKg!.toStringAsFixed(1)} kg',
               ),
-          ],
+              MetricTile(
+                label: 'Height',
+                value: body.heightCm == null
+                    ? '—'
+                    : '${body.heightCm!.toStringAsFixed(0)} cm',
+              ),
+              MetricTile(
+                label: 'Body fat',
+                value: body.bodyFatPercent == null
+                    ? '—'
+                    : '${body.bodyFatPercent!.toStringAsFixed(1)}%',
+              ),
+              MetricTile(
+                label: 'Age',
+                value: app.profile.ageYears?.toString() ?? '—',
+                hint: 'set in profile',
+              ),
+            ],
+          ),
+          if (body.measuredAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Measured ${DateFormat.yMMMd().format(body.measuredAt!)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textMuted,
+                    ),
+              ),
+            ),
           const SizedBox(height: 28),
           const SectionHeader('Heart rate today'),
           const SizedBox(height: 16),
