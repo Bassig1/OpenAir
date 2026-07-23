@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/health/google_health_client.dart';
 import '../../state/app_controller.dart';
 import '../../theme/openair_theme.dart';
 
@@ -13,18 +15,23 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _geminiController;
+  late final TextEditingController _webClientController;
   bool _obscure = true;
+  bool _obscureClient = true;
 
   @override
   void initState() {
     super.initState();
-    final key = context.read<AppController>().geminiApiKey ?? '';
-    _geminiController = TextEditingController(text: key);
+    final app = context.read<AppController>();
+    _geminiController = TextEditingController(text: app.geminiApiKey ?? '');
+    _webClientController =
+        TextEditingController(text: app.googleWebClientId ?? '');
   }
 
   @override
   void dispose() {
     _geminiController.dispose();
+    _webClientController.dispose();
     super.dispose();
   }
 
@@ -153,6 +160,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => app.setLiveSyncEnabled(v),
           ),
           const SizedBox(height: 8),
+          TextField(
+            controller: _webClientController,
+            obscureText: _obscureClient,
+            style: TextStyle(color: colors.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Google Web OAuth Client ID',
+              hintText: '….apps.googleusercontent.com',
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => _obscureClient = !_obscureClient),
+                icon: Icon(_obscureClient ? Icons.visibility : Icons.visibility_off),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonal(
+              onPressed: () async {
+                await app.saveGoogleWebClientId(_webClientController.text);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Web Client ID saved')),
+                  );
+                }
+              },
+              child: const Text('Save Client ID'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cloud OAuth values for this debug APK',
+                  style: TextStyle(
+                    color: colors.green,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  'Package: ${GoogleHealthClient.androidPackageName}\n'
+                  'SHA-1: ${GoogleHealthClient.debugSha1}',
+                  style: TextStyle(color: colors.textSecondary, height: 1.4),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(
+                        text:
+                            '${GoogleHealthClient.androidPackageName}\n${GoogleHealthClient.debugSha1}',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Package + SHA-1 copied')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy package + SHA-1'),
+                ),
+                Text(
+                  'Create both an Android OAuth client (package+SHA-1) and a Web client. Paste only the Web Client ID above, then Connect.',
+                  style: TextStyle(color: colors.textMuted, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
@@ -174,6 +260,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Connect'),
                   ),
           ),
+          if (app.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            SelectableText(
+              app.errorMessage!,
+              style: TextStyle(color: colors.heart, height: 1.35),
+            ),
+          ],
           if (app.devices.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
@@ -27,32 +28,119 @@ class GoogleHealthClient {
   GoogleHealthClient({
     GoogleSignIn? googleSignIn,
     http.Client? httpClient,
+    String? serverClientId,
   })  : _http = httpClient ?? http.Client(),
+        _serverClientId = _normalizeClientId(serverClientId),
         _googleSignIn = googleSignIn ??
-            GoogleSignIn(
-              scopes: const [
-                'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
-                'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
-                'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
-                'https://www.googleapis.com/auth/googlehealth.profile.readonly',
-              ],
-            );
+            _buildSignIn(_normalizeClientId(serverClientId));
+
+  static const healthScopes = <String>[
+    'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+    'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
+    'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
+    'https://www.googleapis.com/auth/googlehealth.profile.readonly',
+  ];
+
+  /// Debug APK signing fingerprint for the Android OAuth client in Cloud Console.
+  static const debugSha1 =
+      '7E:94:37:DD:EF:47:05:C0:BC:CA:7C:15:A0:98:66:C7:23:03:6A:78';
+  static const androidPackageName = 'com.openair.openair';
 
   static const _base = 'https://health.googleapis.com/v4';
   static const _wearablesFamily =
       'users/me/dataSourceFamilies/google-wearables';
 
-  final GoogleSignIn _googleSignIn;
+  GoogleSignIn _googleSignIn;
   final http.Client _http;
+  String? _serverClientId;
 
   GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
 
-  Future<GoogleSignInAccount?> signIn() => _googleSignIn.signIn();
+  String? get serverClientId => _serverClientId;
+
+  static String? _normalizeClientId(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  static GoogleSignIn _buildSignIn(String? serverClientId) {
+    return GoogleSignIn(
+      scopes: healthScopes,
+      serverClientId: serverClientId,
+    );
+  }
+
+  /// Call after the user pastes a Web OAuth client ID from Cloud Console.
+  Future<void> configure({String? serverClientId}) async {
+    final next = _normalizeClientId(serverClientId);
+    if (next == _serverClientId) return;
+    await _googleSignIn.signOut();
+    _serverClientId = next;
+    _googleSignIn = _buildSignIn(next);
+  }
+
+  Future<GoogleSignInAccount?> signIn() async {
+    try {
+      if (_serverClientId == null) {
+        throw StateError(
+          'Missing Web OAuth Client ID. Create a Web application OAuth client '
+          'in Google Cloud Console, then paste its Client ID in Settings.',
+        );
+      }
+      final account = await _googleSignIn.signIn();
+      if (account == null) return null;
+
+      final granted = await _googleSignIn.requestScopes(healthScopes);
+      if (!granted) {
+        throw StateError(
+          'Google Health scopes were not granted. In Cloud Console → Data Access, '
+          'add the four googlehealth.*.readonly scopes, add yourself as a Test user, '
+          'then try Connect again.',
+        );
+      }
+      return account;
+    } on PlatformException catch (e) {
+      throw StateError(_formatPlatformException(e));
+    }
+  }
 
   Future<GoogleSignInAccount?> signInSilently() =>
       _googleSignIn.signInSilently();
 
   Future<void> signOut() => _googleSignIn.signOut();
+
+  static String _formatPlatformException(PlatformException e) {
+    final code = e.code.trim();
+    final message = (e.message ?? '').trim();
+    final details = '${e.details ?? ''}'.trim();
+    final blob = '$code $message $details'.toLowerCase();
+
+    if (blob.contains('10') ||
+        blob.contains('developer_error') ||
+        (code.isEmpty && message.isEmpty) ||
+        message == 'null') {
+      return 'Android OAuth mismatch (usually ApiException:10 / PlatformException null).\n'
+          'Cloud Console checklist:\n'
+          '• Enable Google Health API\n'
+          '• Android OAuth client — package $androidPackageName\n'
+          '  SHA-1: $debugSha1\n'
+          '• Web OAuth client — paste that Client ID in OpenAir Settings\n'
+          '• Audience = Testing + your Google email as Test user\n'
+          '• Data Access → add googlehealth activity/metrics/sleep/profile readonly scopes\n'
+          'Raw: code=${code.isEmpty ? 'null' : code} message=${message.isEmpty ? 'null' : message}';
+    }
+    if (blob.contains('12501') || blob.contains('sign_in_canceled')) {
+      return 'Sign-in was canceled.';
+    }
+    if (blob.contains('12500')) {
+      return 'Google Sign-In failed (12500). Use the Web client ID in Settings '
+          '(not the Android client ID), and verify OAuth consent branding.';
+    }
+    return 'Google Sign-In failed. code=${code.isEmpty ? 'null' : code} '
+        'message=${message.isEmpty ? 'null' : message}'
+        '${details.isEmpty ? '' : ' details=$details'}';
+  }
 
   Future<String?> _accessToken() async {
     final user = _googleSignIn.currentUser;

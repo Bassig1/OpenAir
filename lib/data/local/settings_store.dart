@@ -8,6 +8,7 @@ class SettingsStore {
   }) : _secure = secureStorage ?? const FlutterSecureStorage();
 
   static const _geminiKey = 'gemini_api_key';
+  static const _webClientIdKey = 'google_web_client_id';
   static const _useDemoKey = 'use_demo_data';
   static const _connectedKey = 'google_connected';
   static const _liveSyncKey = 'live_sync_enabled';
@@ -22,6 +23,16 @@ class SettingsStore {
       await _secure.delete(key: _geminiKey);
     } else {
       await _secure.write(key: _geminiKey, value: value.trim());
+    }
+  }
+
+  Future<String?> getGoogleWebClientId() => _secure.read(key: _webClientIdKey);
+
+  Future<void> setGoogleWebClientId(String? value) async {
+    if (value == null || value.trim().isEmpty) {
+      await _secure.delete(key: _webClientIdKey);
+    } else {
+      await _secure.write(key: _webClientIdKey, value: value.trim());
     }
   }
 

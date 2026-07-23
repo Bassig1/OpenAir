@@ -50,6 +50,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   bool liveSyncEnabled = true;
   ThemeMode themeMode = ThemeMode.system;
   String? geminiApiKey;
+  String? googleWebClientId;
   String? errorMessage;
   String? accountEmail;
   DateTime? lastSyncedAt;
@@ -110,9 +111,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       useDemoData = await _settings.getUseDemoData();
       geminiApiKey = await _settings.getGeminiApiKey();
+      googleWebClientId = await _settings.getGoogleWebClientId();
       googleConnected = await _settings.getGoogleConnectedFlag();
       liveSyncEnabled = await _settings.getLiveSyncEnabled();
       themeMode = await _settings.getThemeMode();
+      await _healthClient.configure(serverClientId: googleWebClientId);
     } catch (_) {
       useDemoData = true;
     }
@@ -259,6 +262,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     errorMessage = null;
     notifyListeners();
     try {
+      await _healthClient.configure(serverClientId: googleWebClientId);
       final account = await _healthClient.signIn();
       if (account == null) return;
       googleConnected = true;
@@ -269,8 +273,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       await refresh();
       _restartLiveTimer();
     } catch (e) {
-      errorMessage =
-          'Google Health sign-in failed. Check Cloud OAuth setup in README.\n$e';
+      final text = e.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', '');
+      errorMessage = text;
       notifyListeners();
     }
   }
@@ -285,6 +289,14 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     await refresh();
     _restartLiveTimer();
+  }
+
+  Future<void> saveGoogleWebClientId(String? clientId) async {
+    await _settings.setGoogleWebClientId(clientId);
+    googleWebClientId =
+        (clientId == null || clientId.trim().isEmpty) ? null : clientId.trim();
+    await _healthClient.configure(serverClientId: googleWebClientId);
+    notifyListeners();
   }
 
   Future<void> saveGeminiKey(String? key) async {
