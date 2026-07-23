@@ -26,7 +26,7 @@ OpenAir reads your Fitbit data from the **Google Health API** after the official
 ## Quick start (demo UI)
 
 ```bash
-git clone https://github.com/<you>/OpenAir.git
+git clone https://github.com/Bassig1/OpenAir.git
 cd OpenAir
 flutter pub get
 flutter run
