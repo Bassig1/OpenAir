@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../config/oauth_config.dart';
 import '../config/gemini_config.dart';
+import '../data/diagnostics/health_diagnostic_export.dart';
 import '../data/gemini/gemini_coach.dart';
 import '../data/gemini/local_coach.dart';
 import '../data/health/demo_health_repository.dart';
@@ -93,6 +94,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   String? accountEmail;
   String? aiAnalysis;
   String? aiAnalysisDayKey;
+  String? aiAnalysisError;
   DateTime? lastSyncedAt;
 
   Timer? _activeWorkoutTicker;
@@ -107,11 +109,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isConnected => googleConnected;
 
-  /// Project free-tier Gemini when signed in; optional personal override from Settings.
+  /// Personal build: project Gemini key is always available.
+  /// Optional Settings override for a private AI Studio key later.
+  /// Public launch can gate this behind paid keys without changing call sites.
   String get effectiveGeminiKey {
     final override = geminiApiKey?.trim() ?? '';
     if (override.isNotEmpty) return override;
-    if (!googleConnected) return '';
     return GeminiConfig.defaultApiKey;
   }
 
@@ -432,6 +435,20 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         await _settings.setLastHrNotifyYmd(ymd);
       }
     }
+
+    final lastRecovery = await _settings.getLastRecoveryNotifyYmd();
+    if (lastRecovery != ymd && day.sleepMinutes >= 180) {
+      final brief =
+          _analysis.briefing(day: day, history: days, profile: profile);
+      final recovery = day.recoveryScore?.toStringAsFixed(0) ?? '—';
+      await _notifications.recoveryBrief(
+        headline: 'Recovery ${brief.recoveryZone} · $recovery',
+        body:
+            '${brief.headline} Sleep ${brief.sleepPerformance.toStringAsFixed(0)}% · '
+            '${brief.strainTarget}.',
+      );
+      await _settings.setLastRecoveryNotifyYmd(ymd);
+    }
   }
 
   Future<void> refresh({bool silent = false}) async {
@@ -499,7 +516,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       errorMessage = null;
       await _loadJournalForSelected();
       unawaited(_maybeNotifyAlerts());
-      unawaited(refreshAiAnalysis(force: false));
+      unawaited(refreshAiAnalysis(force: true));
     } catch (e) {
       errorMessage = e
           .toString()
@@ -541,8 +558,26 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Overwrite profile weight/height from the latest Google Health snapshot.
+  /// Fetches body metrics live so Import works even if the last full sync missed them.
   Future<bool> importBodyFromGoogleHealth() async {
-    final cloud = body;
+    if (!googleConnected) return false;
+    BodySnapshot? cloud = body;
+    try {
+      cloud = await _healthClient.fetchLatestBody() ?? cloud;
+      if (cloud != null) {
+        body = cloud;
+        await _healthCache.save(
+          days: days,
+          body: body,
+          devices: devices,
+          syncedAt: lastSyncedAt ?? DateTime.now(),
+        );
+      }
+    } catch (e) {
+      errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
     if (cloud == null ||
         (cloud.weightKg == null && cloud.heightCm == null)) {
       return false;
@@ -554,6 +589,40 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     await _settings.setUserProfileJson(jsonEncode(profile.toJson()));
     notifyListeners();
     return true;
+  }
+
+  bool diagnosticExporting = false;
+
+  /// One-tap dump for Cursor: parsed days, Whoop-style analysis, sanity flags,
+  /// and truncated raw Google Health JSON so we can verify accuracy for you.
+  Future<String> exportDiagnosticsForCursor({bool includeRaw = true}) async {
+    diagnosticExporting = true;
+    notifyListeners();
+    try {
+      Map<String, dynamic>? raw;
+      if (includeRaw && googleConnected) {
+        try {
+          raw = await _healthClient.fetchDiagnosticRaw();
+        } catch (e) {
+          raw = {'error': e.toString()};
+        }
+      }
+      final dump = const HealthDiagnosticExport().build(
+        days: days,
+        profile: profile,
+        body: body,
+        devices: devices,
+        aiAnalysis: aiAnalysis,
+        aiAnalysisError: aiAnalysisError,
+        lastSyncedAt: lastSyncedAt,
+        rawGoogleHealth: raw,
+        googleConnected: googleConnected,
+      );
+      return const HealthDiagnosticExport().encodePretty(dump);
+    } finally {
+      diagnosticExporting = false;
+      notifyListeners();
+    }
   }
 
   Future<void> setAlertsEnabled(bool value) async {
@@ -721,6 +790,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (aiAnalysisLoading) return;
     aiAnalysisLoading = true;
+    aiAnalysisError = null;
     notifyListeners();
     try {
       final recent =
@@ -734,8 +804,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       );
       aiAnalysis = text;
       aiAnalysisDayKey = dayKey;
+      aiAnalysisError = null;
       await _settings.setAiAnalysis(dayKey, text);
-    } catch (_) {
+    } catch (e) {
+      aiAnalysisError = e.toString().replaceFirst('Exception: ', '');
       // Keep prior analysis; local insight cards still cover the day.
     } finally {
       aiAnalysisLoading = false;

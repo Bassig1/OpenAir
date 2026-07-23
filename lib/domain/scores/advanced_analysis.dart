@@ -113,11 +113,11 @@ class AdvancedAnalysis {
         : debt <= -15
             ? ' Banked ~${(-debt)}m.'
             : '';
-    return 'Sleep performance ${performance.toStringAsFixed(0)}% · '
-        'hours vs need ${hoursVsNeed.toStringAsFixed(0)}% · '
-        '${hrs}h ${mins.toString().padLeft(2, '0')}m · '
-        'eff ${efficiency.toStringAsFixed(0)}% · '
-        'restorative ${restorativePct.toStringAsFixed(0)}% '
+    return 'You slept ${hrs}h ${mins.toString().padLeft(2, '0')}m '
+        '(${hoursVsNeed.toStringAsFixed(0)}% of need) · '
+        'Sleep performance ${performance.toStringAsFixed(0)}% · '
+        'Efficiency ${efficiency.toStringAsFixed(0)}% · '
+        'Restorative ${restorativePct.toStringAsFixed(0)}% '
         '(deep ${day.deepSleepMinutes}m / REM ${day.remSleepMinutes}m).'
         '$debtText';
   }
@@ -367,29 +367,57 @@ class AdvancedAnalysis {
             : 'Body needs restoration today.';
 
     final coaching = StringBuffer()
-      ..write(
-        'Recovery $recoveryZone (${recovery.toStringAsFixed(0)}). '
-        'Sleep performance ${sleep.performance.toStringAsFixed(0)}% '
-        '(${_hm(day.sleepMinutes)} vs need ${_hm(sleep.neededMinutes)}). ',
+      ..writeln(
+        'Recovery zone: $recoveryZone '
+        '(${recovery.toStringAsFixed(0)} / 100, readiness ${readiness.toStringAsFixed(0)}).',
+      )
+      ..writeln(
+        'Sleep: ${_hm(day.sleepMinutes)} vs ${_hm(sleep.neededMinutes)} need '
+        '(${sleep.hoursVsNeedPercent.toStringAsFixed(0)}% of target). '
+        'Performance ${sleep.performance.toStringAsFixed(0)}% · '
+        'efficiency ${sleep.efficiencyPercent.toStringAsFixed(0)}% · '
+        'restorative ${sleep.restorativePercent.toStringAsFixed(0)}% '
+        '(deep ${day.deepSleepMinutes}m / REM ${day.remSleepMinutes}m). '
+        '${sleep.consistencyLabel}.',
       );
     if (hrvBaseline != null && day.hrvMs != null) {
       final delta = day.hrvMs! - hrvBaseline;
-      coaching.write(
-        'HRV ${day.hrvMs!.round()} ms is '
-        '${delta >= 0 ? '+' : ''}${delta.round()} vs your recent baseline. ',
+      coaching.writeln(
+        'Autonomic: HRV ${day.hrvMs!.round()} ms '
+        '(${delta >= 0 ? '+' : ''}${delta.round()} vs baseline '
+        '${hrvBaseline.round()} ms) · ${heart.hrvTrend}.',
+      );
+    } else if (day.hrvMs != null) {
+      coaching.writeln(
+        'Autonomic: HRV ${day.hrvMs!.round()} ms · ${heart.hrvTrend}.',
       );
     }
     if (rhrBaseline != null && day.restingHeartRate != null) {
       final delta = day.restingHeartRate! - rhrBaseline;
-      coaching.write(
+      coaching.writeln(
         'Resting HR ${day.restingHeartRate!.round()} bpm '
-        '(${delta >= 0 ? '+' : ''}${delta.round()} vs baseline). ',
+        '(${delta >= 0 ? '+' : ''}${delta.round()} vs baseline) · ${heart.rhrTrend}.',
+      );
+    } else if (day.restingHeartRate != null) {
+      coaching.writeln(
+        'Resting HR ${day.restingHeartRate!.round()} bpm · ${heart.rhrTrend}.',
       );
     }
-    coaching.write(
-      'Day strain ${strain.toStringAsFixed(1)} / 21 — about '
-      '${remainingStrain.toStringAsFixed(1)} left. Stress ${stress.toStringAsFixed(0)}. '
-      '$strainTarget.',
+    if (day.spo2Percent != null || day.respiratoryRate != null) {
+      final bits = <String>[
+        if (day.spo2Percent != null)
+          'SpO₂ ${day.spo2Percent!.toStringAsFixed(1)}%',
+        if (day.respiratoryRate != null)
+          'resp ${day.respiratoryRate!.toStringAsFixed(1)} br/min',
+        if (day.skinTempDeviation != null)
+          'skin Δ ${day.skinTempDeviation!.toStringAsFixed(2)}°',
+      ];
+      coaching.writeln('Overnight vitals: ${bits.join(' · ')}.');
+    }
+    coaching.writeln(
+      'Strain ${strain.toStringAsFixed(1)} / 21 '
+      '(${remainingStrain.toStringAsFixed(1)} remaining) · '
+      'stress ${stress.toStringAsFixed(0)}. $strainTarget.',
     );
 
     final actions = <String>[

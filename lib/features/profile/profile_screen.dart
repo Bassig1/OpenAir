@@ -154,8 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (body != null &&
-              (body.weightKg != null || body.heightCm != null)) ...[
+          if (app.googleConnected) ...[
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -175,11 +174,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Weight: ${Units.weight(body.weightKg, metric: _metric)}\n'
-                    'Height: ${Units.height(body.heightCm, metric: _metric)}\n'
-                    'BMI: ${body.bmi?.toStringAsFixed(1) ?? '—'}\n'
-                    'Body fat: ${body.bodyFatPercent?.toStringAsFixed(1) ?? '—'}%\n'
-                    'VO₂ max: ${body.vo2Max?.toStringAsFixed(1) ?? '—'}',
+                    body != null &&
+                            (body.weightKg != null || body.heightCm != null)
+                        ? 'Weight: ${Units.weight(body.weightKg, metric: _metric)}\n'
+                            'Height: ${Units.height(body.heightCm, metric: _metric)}\n'
+                            'BMI: ${body.bmi?.toStringAsFixed(1) ?? '—'}\n'
+                            'Body fat: ${body.bodyFatPercent?.toStringAsFixed(1) ?? '—'}%\n'
+                            'VO₂ max: ${body.vo2Max?.toStringAsFixed(1) ?? '—'}'
+                        : 'No body metrics cached yet. Tap import to pull the latest weight/height from Google Health.',
                     style: TextStyle(color: colors.textSecondary, height: 1.45),
                   ),
                   const SizedBox(height: 10),
@@ -189,28 +191,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       if (!context.mounted) return;
                       if (ok) {
                         final p = app.profile;
-                        _height.text = p.heightCm == null
-                            ? ''
-                            : _metric
-                                ? p.heightCm!.toStringAsFixed(0)
-                                : Units.cmToInValue(p.heightCm)!
-                                    .toStringAsFixed(1);
-                        _weight.text = p.weightKg == null
-                            ? ''
-                            : _metric
-                                ? p.weightKg!.toStringAsFixed(1)
-                                : Units.kgToLbValue(p.weightKg)!
-                                    .toStringAsFixed(1);
+                        setState(() {
+                          _height.text = p.heightCm == null
+                              ? ''
+                              : _metric
+                                  ? p.heightCm!.toStringAsFixed(0)
+                                  : Units.cmToInValue(p.heightCm)!
+                                      .toStringAsFixed(1);
+                          _weight.text = p.weightKg == null
+                              ? ''
+                              : _metric
+                                  ? p.weightKg!.toStringAsFixed(1)
+                                  : Units.kgToLbValue(p.weightKg)!
+                                      .toStringAsFixed(1);
+                        });
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Imported weight & height from Google Health'),
+                            content: Text(
+                              'Imported weight & height from Google Health',
+                            ),
                           ),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
+                          SnackBar(
                             content: Text(
-                              'No body metrics in the last sync. Pull to refresh on Today first.',
+                              app.errorMessage ??
+                                  'No weight/height found in Google Health. '
+                                  'Log them in the Fitbit app first, then try again.',
                             ),
                           ),
                         );
