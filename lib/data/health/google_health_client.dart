@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
+import '../../config/oauth_config.dart';
 import '../../domain/models/day_summary.dart';
 import '../../domain/models/health_extras.dart';
 
@@ -83,10 +84,7 @@ class GoogleHealthClient {
   Future<GoogleSignInAccount?> signIn() async {
     try {
       if (_serverClientId == null) {
-        throw StateError(
-          'Missing Web OAuth Client ID. Create a Web application OAuth client '
-          'in Google Cloud Console, then paste its Client ID in Settings.',
-        );
+        await configure(serverClientId: OAuthConfig.defaultWebClientId);
       }
       final account = await _googleSignIn.signIn();
       if (account == null) return null;

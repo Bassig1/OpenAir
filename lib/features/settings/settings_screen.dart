@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/oauth_config.dart';
 import '../../data/health/google_health_client.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../state/app_controller.dart';
@@ -25,8 +26,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     final app = context.read<AppController>();
     _geminiController = TextEditingController(text: app.geminiApiKey ?? '');
-    _webClientController =
-        TextEditingController(text: app.googleWebClientId ?? '');
+    _webClientController = TextEditingController(
+      text: app.googleWebClientId?.isNotEmpty == true
+          ? app.googleWebClientId!
+          : OAuthConfig.defaultWebClientId,
+    );
   }
 
   @override
@@ -266,7 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: const Text('Copy package + SHA-1'),
                 ),
                 Text(
-                  'Create both an Android OAuth client (package+SHA-1) and a Web client. Paste only the Web Client ID above, then Connect.',
+                  'Web Client ID is preloaded for this build. Confirm Android OAuth client uses package + SHA-1 below, then Connect.',
                   style: TextStyle(color: colors.textMuted, height: 1.35),
                 ),
               ],
@@ -342,7 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a free API key at aistudio.google.com and paste it here. Stored only on this device.',
+            'Create a free API key at aistudio.google.com later if you want Gemini chat. Until then, Coach uses on-device OpenAir answers.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),

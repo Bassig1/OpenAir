@@ -55,7 +55,7 @@ class _CoachScreenState extends State<CoachScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: Text(
-                  'Add a Gemini API key in Settings (open from the Home / Today tab) to ask about recovery, sleep, and strain.',
+                  'Using on-device OpenAir coach for now. Add a free Gemini key in Settings later for smarter chat — everything else works without it.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: colors.textSecondary,
                       ),

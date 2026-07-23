@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+oauth_web_client_id.txt
 
 # Symbolication related
 app.*.symbols
