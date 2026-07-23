@@ -184,6 +184,117 @@ class DaySummary {
       'insights': insights.map((i) => {'title': i.title, 'body': i.body}).toList(),
     };
   }
+
+  /// Compact persistence for offline reopen (skips dense sample series).
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'date': date.toIso8601String(),
+      'steps': steps,
+      'activeCalories': activeCalories,
+      'totalCalories': totalCalories,
+      'activeMinutes': activeMinutes,
+      'zoneMinutes': zoneMinutes,
+      'sedentaryMinutes': sedentaryMinutes,
+      'distanceMeters': distanceMeters,
+      'floors': floors,
+      'restingHeartRate': restingHeartRate,
+      'hrvMs': hrvMs,
+      'spo2Percent': spo2Percent,
+      'respiratoryRate': respiratoryRate,
+      'skinTempDeviation': skinTempDeviation,
+      'vo2Max': vo2Max,
+      'sleepMinutes': sleepMinutes,
+      'deepSleepMinutes': deepSleepMinutes,
+      'remSleepMinutes': remSleepMinutes,
+      'lightSleepMinutes': lightSleepMinutes,
+      'awakeMinutes': awakeMinutes,
+      'avgHeartRate': avgHeartRate,
+      'maxHeartRate': maxHeartRate,
+      'heartRateZones': heartRateZones?.toJson(),
+      'exercises': exercises.map((e) => e.toJson()).toList(),
+      'recoveryScore': recoveryScore,
+      'strainScore': strainScore,
+      'sleepScore': sleepScore,
+      'sleepNeededMinutes': sleepNeededMinutes,
+      'sleepDebtMinutes': sleepDebtMinutes,
+      'recoveryBreakdown': recoveryBreakdown?.toJson(),
+      'stressScore': stressScore,
+      'readinessScore': readinessScore,
+      'stressManagementScore': stressManagementScore,
+      'cardioFitnessScore': cardioFitnessScore,
+      'insights': insights.map((i) => i.toJson()).toList(),
+      'latestHeart': heartSamples.isEmpty
+          ? null
+          : {
+              'time': heartSamples.last.time.toIso8601String(),
+              'value': heartSamples.last.value,
+            },
+    };
+  }
+
+  factory DaySummary.fromCacheJson(Map<String, dynamic> json) {
+    final latest = json['latestHeart'] as Map<String, dynamic>?;
+    final samples = <MetricSample>[];
+    if (latest != null) {
+      final t = DateTime.tryParse('${latest['time']}');
+      final v = (latest['value'] as num?)?.toDouble();
+      if (t != null && v != null) {
+        samples.add(MetricSample(time: t, value: v));
+      }
+    }
+    final zonesRaw = json['heartRateZones'];
+    final breakdownRaw = json['recoveryBreakdown'];
+    final insightsRaw = json['insights'] as List<dynamic>? ?? const [];
+    final exercisesRaw = json['exercises'] as List<dynamic>? ?? const [];
+    return DaySummary(
+      date: DateTime.parse(json['date'] as String),
+      steps: (json['steps'] as num?)?.toInt() ?? 0,
+      activeCalories: (json['activeCalories'] as num?)?.toDouble() ?? 0,
+      totalCalories: (json['totalCalories'] as num?)?.toDouble(),
+      activeMinutes: (json['activeMinutes'] as num?)?.toInt() ?? 0,
+      zoneMinutes: (json['zoneMinutes'] as num?)?.toInt() ?? 0,
+      sedentaryMinutes: (json['sedentaryMinutes'] as num?)?.toInt(),
+      distanceMeters: (json['distanceMeters'] as num?)?.toDouble(),
+      floors: (json['floors'] as num?)?.toInt(),
+      restingHeartRate: (json['restingHeartRate'] as num?)?.toDouble(),
+      hrvMs: (json['hrvMs'] as num?)?.toDouble(),
+      spo2Percent: (json['spo2Percent'] as num?)?.toDouble(),
+      respiratoryRate: (json['respiratoryRate'] as num?)?.toDouble(),
+      skinTempDeviation: (json['skinTempDeviation'] as num?)?.toDouble(),
+      vo2Max: (json['vo2Max'] as num?)?.toDouble(),
+      sleepMinutes: (json['sleepMinutes'] as num?)?.toInt() ?? 0,
+      deepSleepMinutes: (json['deepSleepMinutes'] as num?)?.toInt() ?? 0,
+      remSleepMinutes: (json['remSleepMinutes'] as num?)?.toInt() ?? 0,
+      lightSleepMinutes: (json['lightSleepMinutes'] as num?)?.toInt() ?? 0,
+      awakeMinutes: (json['awakeMinutes'] as num?)?.toInt() ?? 0,
+      avgHeartRate: (json['avgHeartRate'] as num?)?.toDouble(),
+      maxHeartRate: (json['maxHeartRate'] as num?)?.toDouble(),
+      heartSamples: samples,
+      spo2Samples: const [],
+      heartRateZones: zonesRaw is Map
+          ? HeartRateZones.fromJson(Map<String, dynamic>.from(zonesRaw))
+          : null,
+      exercises: exercisesRaw
+          .map((e) => ExerciseSession.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      recoveryScore: (json['recoveryScore'] as num?)?.toDouble(),
+      strainScore: (json['strainScore'] as num?)?.toDouble(),
+      sleepScore: (json['sleepScore'] as num?)?.toDouble(),
+      sleepNeededMinutes: (json['sleepNeededMinutes'] as num?)?.toInt(),
+      sleepDebtMinutes: (json['sleepDebtMinutes'] as num?)?.toInt(),
+      recoveryBreakdown: breakdownRaw is Map
+          ? RecoveryBreakdown.fromJson(Map<String, dynamic>.from(breakdownRaw))
+          : null,
+      stressScore: (json['stressScore'] as num?)?.toDouble(),
+      readinessScore: (json['readinessScore'] as num?)?.toDouble(),
+      stressManagementScore:
+          (json['stressManagementScore'] as num?)?.toDouble(),
+      cardioFitnessScore: (json['cardioFitnessScore'] as num?)?.toDouble(),
+      insights: insightsRaw
+          .map((e) => InsightItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 class MetricSample {

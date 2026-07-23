@@ -256,12 +256,12 @@ class AdvancedAnalysis {
   SyncHealth assessSync({
     required List<DaySummary> days,
     required DateTime? lastSyncedAt,
-    required bool isLive,
+    required bool connected,
   }) {
-    if (!isLive) {
+    if (!connected) {
       return SyncHealth(
-        status: SyncStatus.demo,
-        message: 'Demo mode — connect cloud sync for live wearable data.',
+        status: SyncStatus.disconnected,
+        message: 'Connect Google Health once — OpenAir will remember your session.',
         missingDayCount: 0,
         dataLag: null,
         lastSyncedAt: lastSyncedAt,
@@ -270,7 +270,8 @@ class AdvancedAnalysis {
     if (days.isEmpty) {
       return SyncHealth(
         status: SyncStatus.gap,
-        message: 'No cloud days yet. Open the Fitbit app to sync your device.',
+        message:
+            'Connected, waiting for cloud days. Open the Fitbit app near your watch, then pull to refresh.',
         missingDayCount: 14,
         dataLag: null,
         lastSyncedAt: lastSyncedAt,
@@ -287,12 +288,12 @@ class AdvancedAnalysis {
             x.date.year == d.year &&
             x.date.month == d.month &&
             x.date.day == d.day &&
-            (x.steps > 0 || x.sleepMinutes > 0 || x.heartSamples.isNotEmpty),
+            (x.steps > 0 || x.sleepMinutes > 0 || x.hrvMs != null || x.restingHeartRate != null),
       );
       if (!has) missing++;
     }
 
-    DateTime? latestPoint;
+    DateTime? latestPoint = lastSyncedAt;
     for (final day in days) {
       for (final s in day.heartSamples) {
         if (latestPoint == null || s.time.isAfter(latestPoint)) {
@@ -309,13 +310,13 @@ class AdvancedAnalysis {
     }
 
     final lag = latestPoint == null ? null : today.difference(latestPoint);
-    final stale = lag != null && lag > const Duration(hours: 3);
-    final status = missing >= 3 || stale ? SyncStatus.gap : SyncStatus.live;
-    final message = status == SyncStatus.live
-        ? 'Live sync — matching your cloud fitness feed.'
+    final stale = lag != null && lag > const Duration(hours: 12);
+    final status = missing >= 4 || stale ? SyncStatus.gap : SyncStatus.ok;
+    final message = status == SyncStatus.ok
+        ? 'Summary from your Google Health cloud feed.'
         : stale
-            ? 'Cloud data looks stale (${lag.inHours}h lag). Open your Fitbit app near the device.'
-            : 'Missing $missing of last 7 days. Sync Fitbit app, then pull to refresh.';
+            ? 'Last cloud update looks old (${lag.inHours}h). Open Fitbit near your watch, then refresh.'
+            : 'Thin coverage on $missing of the last 7 days — sync Fitbit, then refresh.';
 
     return SyncHealth(
       status: status,
@@ -325,6 +326,158 @@ class AdvancedAnalysis {
       lastSyncedAt: lastSyncedAt,
       latestDataAt: latestPoint,
     );
+  }
+
+  /// Deep daily coaching brief derived from Google Health aggregates.
+  DayBriefing briefing({
+    required DaySummary day,
+    required List<DaySummary> history,
+    UserProfile profile = UserProfile.empty,
+  }) {
+    final sleep = this.sleep(day, profile: profile, history: history);
+    final heart = heartbeat(day, history);
+    final recovery = day.recoveryScore ?? 0;
+    final strain = day.strainScore ?? 0;
+    final stress = day.stressScore ?? 40;
+    final readiness = day.readinessScore ?? recovery;
+    final remainingStrain = (21 - strain).clamp(0.0, 21.0);
+
+    final hrvBaseline = _avgOrNull(
+      history.where((d) => d.hrvMs != null).map((d) => d.hrvMs!),
+    );
+    final rhrBaseline = _avgOrNull(
+      history.where((d) => d.restingHeartRate != null).map((d) => d.restingHeartRate!),
+    );
+
+    final recoveryZone = recovery >= 67
+        ? 'Green'
+        : recovery >= 34
+            ? 'Yellow'
+            : 'Red';
+    final strainTarget = recovery >= 67
+        ? 'Aim up to ${(strain + remainingStrain * 0.85).clamp(8.0, 18.0).toStringAsFixed(0)} strain'
+        : recovery >= 34
+            ? 'Cap near ${(8 + remainingStrain * 0.35).clamp(5.0, 12.0).toStringAsFixed(0)} strain'
+            : 'Keep strain light — prioritize recovery work';
+
+    final headline = recovery >= 67
+        ? 'Recovered and ready to push.'
+        : recovery >= 34
+            ? 'Mixed recovery — train with intent.'
+            : 'Body needs restoration today.';
+
+    final coaching = StringBuffer()
+      ..write(
+        'Recovery $recoveryZone (${recovery.toStringAsFixed(0)}). '
+        'Sleep performance ${sleep.performance.toStringAsFixed(0)}% '
+        '(${_hm(day.sleepMinutes)} vs need ${_hm(sleep.neededMinutes)}). ',
+      );
+    if (hrvBaseline != null && day.hrvMs != null) {
+      final delta = day.hrvMs! - hrvBaseline;
+      coaching.write(
+        'HRV ${day.hrvMs!.round()} ms is '
+        '${delta >= 0 ? '+' : ''}${delta.round()} vs your recent baseline. ',
+      );
+    }
+    if (rhrBaseline != null && day.restingHeartRate != null) {
+      final delta = day.restingHeartRate! - rhrBaseline;
+      coaching.write(
+        'Resting HR ${day.restingHeartRate!.round()} bpm '
+        '(${delta >= 0 ? '+' : ''}${delta.round()} vs baseline). ',
+      );
+    }
+    coaching.write(
+      'Day strain ${strain.toStringAsFixed(1)} / 21 — about '
+      '${remainingStrain.toStringAsFixed(1)} left. Stress ${stress.toStringAsFixed(0)}. '
+      '$strainTarget.',
+    );
+
+    final actions = <String>[
+      if (recovery < 34)
+        'Keep intensity easy; walk, mobility, or short Zone 2 only.'
+      else if (recovery < 67)
+        'One quality session is fine — avoid stacking hard intervals + late nights.'
+      else
+        'Green light for a key workout if sleep stays on track tonight.',
+      if (sleep.debtMinutes >= 45)
+        'Protect bedtime tonight — sleep debt is ~${sleep.debtMinutes}m.'
+      else if (sleep.performance < 70)
+        'Raise sleep performance: consistent lights-out and less late caffeine.',
+      if (stress >= 65)
+        'High stress load — add a wind-down (walk, breathwork, earlier dinner).',
+      if (day.exercises.isEmpty && recovery >= 50)
+        'No workout logged yet — a structured session can use remaining strain capacity.',
+      if ((day.sedentaryMinutes ?? 0) > 600)
+        'Break up long sedentary blocks with short walks.',
+    ];
+
+    while (actions.length < 3) {
+      actions.add('Hydrate and keep tonight’s bedtime within 30 minutes of your usual.');
+      if (actions.length >= 3) break;
+    }
+
+    final drivers = <BriefDriver>[
+      BriefDriver(
+        label: 'Sleep',
+        score: sleep.performance,
+        detail:
+            '${_hm(day.sleepMinutes)} · eff ${sleep.efficiencyPercent.toStringAsFixed(0)}% · '
+            'restorative ${sleep.restorativePercent.toStringAsFixed(0)}%',
+      ),
+      BriefDriver(
+        label: 'HRV',
+        score: heart.hrvMs == null
+            ? 50
+            : hrvBaseline == null || hrvBaseline <= 0
+                ? 60
+                : ((heart.hrvMs! / hrvBaseline) * 70).clamp(15, 95),
+        detail: heart.hrvMs == null
+            ? 'No HRV yet'
+            : '${heart.hrvMs!.round()} ms · ${heart.hrvTrend}',
+      ),
+      BriefDriver(
+        label: 'Resting HR',
+        score: heart.restingHr == null
+            ? 50
+            : rhrBaseline == null
+                ? 60
+                : (50 + (rhrBaseline - heart.restingHr!) * 3).clamp(15, 95),
+        detail: heart.restingHr == null
+            ? 'No RHR yet'
+            : '${heart.restingHr!.round()} bpm · ${heart.rhrTrend}',
+      ),
+      BriefDriver(
+        label: 'Strain left',
+        score: (remainingStrain / 21 * 100).clamp(5, 99),
+        detail:
+            '${strain.toStringAsFixed(1)} used · ${remainingStrain.toStringAsFixed(1)} remaining',
+      ),
+    ];
+
+    return DayBriefing(
+      headline: headline,
+      coaching: coaching.toString().trim(),
+      recoveryZone: recoveryZone,
+      strainTarget: strainTarget,
+      remainingStrain: double.parse(remainingStrain.toStringAsFixed(1)),
+      sleepPerformance: sleep.performance,
+      readiness: readiness,
+      stress: stress,
+      actions: actions.take(4).toList(),
+      drivers: drivers,
+    );
+  }
+
+  double? _avgOrNull(Iterable<double> values) {
+    final list = values.toList();
+    if (list.isEmpty) return null;
+    return list.reduce((a, b) => a + b) / list.length;
+  }
+
+  String _hm(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
   }
 
   String _trend(List<double> values) {
@@ -417,7 +570,7 @@ class OxygenAnalysis {
   final double? respiratoryRate;
 }
 
-enum SyncStatus { live, gap, demo }
+enum SyncStatus { ok, gap, disconnected }
 
 class SyncHealth {
   const SyncHealth({
@@ -435,6 +588,44 @@ class SyncHealth {
   final Duration? dataLag;
   final DateTime? lastSyncedAt;
   final DateTime? latestDataAt;
+}
+
+class DayBriefing {
+  const DayBriefing({
+    required this.headline,
+    required this.coaching,
+    required this.recoveryZone,
+    required this.strainTarget,
+    required this.remainingStrain,
+    required this.sleepPerformance,
+    required this.readiness,
+    required this.stress,
+    required this.actions,
+    required this.drivers,
+  });
+
+  final String headline;
+  final String coaching;
+  final String recoveryZone;
+  final String strainTarget;
+  final double remainingStrain;
+  final double sleepPerformance;
+  final double readiness;
+  final double stress;
+  final List<String> actions;
+  final List<BriefDriver> drivers;
+}
+
+class BriefDriver {
+  const BriefDriver({
+    required this.label,
+    required this.score,
+    required this.detail,
+  });
+
+  final String label;
+  final double score;
+  final String detail;
 }
 
 class WorkoutAnalysis {

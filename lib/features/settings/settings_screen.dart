@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/oauth_config.dart';
 import '../../data/health/google_health_client.dart';
+import '../../domain/units.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../state/app_controller.dart';
 import '../../theme/openair_theme.dart';
@@ -59,7 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             subtitle: Text(
               app.profile.isComplete
-                  ? 'Age ${app.profile.ageYears} · ${app.effectiveBody.weightKg?.toStringAsFixed(1) ?? '—'} kg · ${app.effectiveBody.heightCm?.toStringAsFixed(0) ?? '—'} cm'
+                  ? 'Age ${app.profile.ageYears} · ${Units.weight(app.effectiveBody.weightKg, metric: app.profile.useMetric)} · ${Units.height(app.effectiveBody.heightCm, metric: app.profile.useMetric)}'
                   : 'Add age, weight, height for personalized scores',
               style: TextStyle(color: colors.textSecondary),
             ),
@@ -115,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Fitbit devices only sync through the official Fitbit app (Google rule). OpenAir then reads the same Google Health cloud feed every minute for Health-app accuracy — not direct Bluetooth.',
+            'Fitbit syncs only through the official Fitbit app. OpenAir reads the Google Health cloud feed on open / resume / pull-to-refresh and builds your coaching summary.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -133,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Sync health: ${app.syncHealth.status.name.toUpperCase()}',
+                  'Data status: ${app.syncHealth.status.name.toUpperCase()}',
                   style: TextStyle(
                     color: colors.green,
                     fontWeight: FontWeight.w800,
@@ -155,34 +156,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Use demo data',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-            subtitle: Text(
-              'Preview the OpenAir UI without OAuth',
-              style: TextStyle(color: colors.textSecondary),
-            ),
-            value: app.useDemoData,
-            activeThumbColor: colors.green,
-            onChanged: (v) => app.setUseDemoData(v),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Live sync',
-              style: TextStyle(color: colors.textPrimary),
-            ),
-            subtitle: Text(
-              'Poll cloud data every 1 minute and refresh on app resume when connected.',
-              style: TextStyle(color: colors.textSecondary),
-            ),
-            value: app.liveSyncEnabled,
-            activeThumbColor: colors.green,
-            onChanged: (v) => app.setLiveSyncEnabled(v),
-          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
@@ -346,7 +319,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a free API key at aistudio.google.com later if you want Gemini chat. Until then, Coach uses on-device OpenAir answers.',
+            app.geminiReady
+                ? 'Gemini free-tier analysis is included automatically after you connect Google Health. Optional: paste your own AI Studio key to use a personal quota.'
+                : 'Connect Google Health to unlock seamless Gemini coaching (project free tier).',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
@@ -356,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             controller: _geminiController,
             obscureText: _obscure,
             decoration: InputDecoration(
-              labelText: 'Gemini API key',
+              labelText: 'Optional personal Gemini API key',
               suffixIcon: IconButton(
                 onPressed: () => setState(() => _obscure = !_obscure),
                 icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
@@ -369,18 +344,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await app.saveGeminiKey(_geminiController.text);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Gemini key saved')),
+                  const SnackBar(content: Text('Personal Gemini key saved')),
                 );
               }
             },
-            child: const Text('Save key'),
+            child: const Text('Save personal key'),
           ),
           TextButton(
             onPressed: () async {
               _geminiController.clear();
               await app.saveGeminiKey(null);
             },
-            child: const Text('Clear key'),
+            child: const Text('Use project free tier'),
           ),
           const Divider(height: 36),
           Text(

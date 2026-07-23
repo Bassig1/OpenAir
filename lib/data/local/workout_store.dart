@@ -1,33 +1,35 @@
 import 'dart:convert';
 
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/health_extras.dart';
 
+/// Manual workouts — SharedPreferences so Android, iOS, and web all work
+/// (path_provider / dart:io is not available on Flutter web).
 class WorkoutStore {
-  Future<File> _file() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File(p.join(dir.path, 'manual_workouts.json'));
-  }
+  static const _key = 'manual_workouts_v1';
 
   Future<List<ExerciseSession>> loadAll() async {
-    final file = await _file();
-    if (!await file.exists()) return const [];
-    final raw = await file.readAsString();
-    if (raw.trim().isEmpty) return const [];
-    final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => ExerciseSession.fromJson(e as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => b.start.compareTo(a.start));
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map((e) => ExerciseSession.fromJson(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => b.start.compareTo(a.start));
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<void> saveAll(List<ExerciseSession> sessions) async {
-    final file = await _file();
-    final encoded = jsonEncode(sessions.map((e) => e.toJson()).toList());
-    await file.writeAsString(encoded);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key,
+      jsonEncode(sessions.map((e) => e.toJson()).toList()),
+    );
   }
 
   Future<List<ExerciseSession>> upsert(ExerciseSession session) async {

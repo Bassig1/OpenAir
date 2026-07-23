@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/units.dart';
 import '../../state/app_controller.dart';
 import '../../theme/openair_theme.dart';
 import '../../widgets/metric_widgets.dart';
@@ -72,7 +73,10 @@ class StrainScreen extends StatelessWidget {
                 label: 'Distance',
                 value: day.distanceMeters == null
                     ? '—'
-                    : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
+                    : Units.distanceMeters(
+                        day.distanceMeters,
+                        metric: app.profile.useMetric,
+                      ),
               ),
               MetricTile(label: 'Floors', value: day.floors?.toString() ?? '—'),
               MetricTile(

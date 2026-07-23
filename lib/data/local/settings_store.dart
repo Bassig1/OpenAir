@@ -17,6 +17,8 @@ class SettingsStore {
   static const _lastSleepNotifyKey = 'last_sleep_notify_ymd';
   static const _lastHrNotifyKey = 'last_hr_notify_ymd';
   static const _alertsEnabledKey = 'alerts_enabled';
+  static const _aiAnalysisKey = 'ai_analysis_text';
+  static const _aiAnalysisDayKey = 'ai_analysis_day';
 
   final FlutterSecureStorage _secure;
 
@@ -130,5 +132,25 @@ class SettingsStore {
   Future<void> setLastHrNotifyYmd(String ymd) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastHrNotifyKey, ymd);
+  }
+
+  Future<({String? dayKey, String? text})> getAiAnalysis() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (
+      dayKey: prefs.getString(_aiAnalysisDayKey),
+      text: prefs.getString(_aiAnalysisKey),
+    );
+  }
+
+  Future<void> setAiAnalysis(String dayKey, String text) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_aiAnalysisDayKey, dayKey);
+    await prefs.setString(_aiAnalysisKey, text);
+  }
+
+  Future<void> clearAiAnalysis() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_aiAnalysisDayKey);
+    await prefs.remove(_aiAnalysisKey);
   }
 }

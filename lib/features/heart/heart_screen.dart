@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/units.dart';
 import '../../state/app_controller.dart';
 import '../../theme/openair_theme.dart';
 import '../../widgets/metric_widgets.dart';
@@ -29,6 +30,22 @@ class HeartScreen extends StatelessWidget {
         children: [
           DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
           const SizedBox(height: 20),
+          if (app.latestHeartSample != null) ...[
+            MetricTile(
+              label: 'Latest heart rate',
+              value: '${app.latestHeartSample!.value.round()}',
+              hint:
+                  '${DateFormat.jm().format(app.latestHeartSample!.time)} · from Google Health cloud (not Bluetooth live)',
+              accent: colors.heart,
+            ),
+            const SizedBox(height: 24),
+          ] else if (app.isConnected) ...[
+            Text(
+              'No heart samples in this cloud snapshot yet. Open the Fitbit app near your watch, wait for sync, then pull to refresh.',
+              style: TextStyle(color: colors.textSecondary, height: 1.35),
+            ),
+            const SizedBox(height: 24),
+          ],
           if (app.heartbeatAnalysis != null) ...[
             const SectionHeader('Heartbeat analysis'),
             const SizedBox(height: 12),
@@ -234,15 +251,17 @@ class HeartScreen extends StatelessWidget {
             children: [
               MetricTile(
                 label: 'Weight',
-                value: body.weightKg == null
-                    ? '—'
-                    : '${body.weightKg!.toStringAsFixed(1)} kg',
+                value: Units.weight(
+                  body.weightKg,
+                  metric: app.profile.useMetric,
+                ),
               ),
               MetricTile(
                 label: 'Height',
-                value: body.heightCm == null
-                    ? '—'
-                    : '${body.heightCm!.toStringAsFixed(0)} cm',
+                value: Units.height(
+                  body.heightCm,
+                  metric: app.profile.useMetric,
+                ),
               ),
               MetricTile(
                 label: 'Body fat',

@@ -5,7 +5,7 @@ class UserProfile {
     this.sex,
     this.heightCm,
     this.weightKg,
-    this.useMetric = true,
+    this.useMetric = false,
   });
 
   final String? displayName;
@@ -15,7 +15,7 @@ class UserProfile {
   final double? weightKg;
   final bool useMetric;
 
-  static const empty = UserProfile();
+  static const empty = UserProfile(useMetric: false);
 
   bool get isComplete =>
       ageYears != null && heightCm != null && weightKg != null;
@@ -84,7 +84,7 @@ class UserProfile {
       sex: sex,
       heightCm: (json['heightCm'] as num?)?.toDouble(),
       weightKg: (json['weightKg'] as num?)?.toDouble(),
-      useMetric: json['useMetric'] as bool? ?? true,
+      useMetric: json['useMetric'] as bool? ?? false,
     );
   }
 }

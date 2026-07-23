@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../config/oauth_config.dart';
+import '../config/gemini_config.dart';
 import '../data/gemini/gemini_coach.dart';
 import '../data/gemini/local_coach.dart';
 import '../data/health/demo_health_repository.dart';
 import '../data/health/google_health_client.dart';
+import '../data/local/health_cache_store.dart';
 import '../data/local/journal_store.dart';
 import '../data/local/notification_service.dart';
 import '../data/local/settings_store.dart';
@@ -17,6 +19,7 @@ import '../domain/models/day_summary.dart';
 import '../domain/models/health_extras.dart';
 import '../domain/models/user_profile.dart';
 import '../domain/scores/advanced_analysis.dart';
+import '../domain/scores/health_insights_engine.dart';
 import '../domain/scores/period_analytics.dart';
 import '../domain/scores/score_engine.dart';
 
@@ -35,7 +38,7 @@ class ActiveWorkout {
 class AppController extends ChangeNotifier with WidgetsBindingObserver {
   AppController({
     SettingsStore? settings,
-    DemoHealthRepository? demoRepo,
+    HealthCacheStore? healthCache,
     GoogleHealthClient? healthClient,
     ScoreEngine? scoreEngine,
     GeminiCoach? coach,
@@ -43,8 +46,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     WorkoutStore? workoutStore,
     NotificationService? notifications,
   })  : _settings = settings ?? SettingsStore(),
-        _demoRepo = demoRepo ?? DemoHealthRepository(),
-        _healthClient = healthClient ?? GoogleHealthClient(),
+        _healthCache = healthCache ?? HealthCacheStore(),
+        _healthClient = healthClient ??
+            GoogleHealthClient(serverClientId: OAuthConfig.defaultWebClientId),
         _scoreEngine = scoreEngine ?? const ScoreEngine(),
         _coach = coach ?? GeminiCoach(),
         _localCoach = const LocalCoach(),
@@ -53,7 +57,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         _notifications = notifications ?? NotificationService();
 
   final SettingsStore _settings;
-  final DemoHealthRepository _demoRepo;
+  final HealthCacheStore _healthCache;
   final GoogleHealthClient _healthClient;
   final ScoreEngine _scoreEngine;
   final GeminiCoach _coach;
@@ -63,9 +67,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final NotificationService _notifications;
   final AdvancedAnalysis _analysis = const AdvancedAnalysis();
   final PeriodAnalytics _periods = const PeriodAnalytics();
+  final HealthInsightsEngine _insightsEngine = const HealthInsightsEngine();
 
-  static const livePollInterval = Duration(minutes: 1);
   static const syncDayWindow = 30;
+  static const syncTimeout = Duration(seconds: 90);
 
   List<DaySummary> days = const [];
   List<ChatMessage> chat = const [];
@@ -78,18 +83,18 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   int selectedIndex = 0;
   bool loading = true;
   bool syncing = false;
-  bool useDemoData = true;
   bool googleConnected = false;
-  bool liveSyncEnabled = true;
   bool alertsEnabled = true;
+  bool aiAnalysisLoading = false;
   ThemeMode themeMode = ThemeMode.system;
   String? geminiApiKey;
   String? googleWebClientId;
   String? errorMessage;
   String? accountEmail;
+  String? aiAnalysis;
+  String? aiAnalysisDayKey;
   DateTime? lastSyncedAt;
 
-  Timer? _liveTimer;
   Timer? _activeWorkoutTicker;
 
   DaySummary? get selectedDay {
@@ -100,7 +105,17 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   DaySummary? get today => days.isEmpty ? null : days.last;
 
-  bool get isLive => !useDemoData && googleConnected;
+  bool get isConnected => googleConnected;
+
+  /// Project free-tier Gemini when signed in; optional personal override from Settings.
+  String get effectiveGeminiKey {
+    final override = geminiApiKey?.trim() ?? '';
+    if (override.isNotEmpty) return override;
+    if (!googleConnected) return '';
+    return GeminiConfig.defaultApiKey;
+  }
+
+  bool get geminiReady => effectiveGeminiKey.isNotEmpty;
 
   WeeklyReport get weeklyReport => _scoreEngine.buildWeeklyReport(days);
 
@@ -162,11 +177,39 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   List<InsightItem> get todaysInsights => selectedDay?.insights ?? const [];
 
+  List<HealthInsightCard> get healthInsightCards {
+    final day = selectedDay;
+    if (day == null) return const [];
+    return _insightsEngine.build(
+      day: day,
+      history: days,
+      profile: profile,
+    );
+  }
+
   SyncHealth get syncHealth => _analysis.assessSync(
         days: days,
         lastSyncedAt: lastSyncedAt,
-        isLive: isLive,
+        connected: googleConnected,
       );
+
+  DayBriefing? get dayBriefing {
+    final day = selectedDay;
+    if (day == null) return null;
+    return _analysis.briefing(day: day, history: days, profile: profile);
+  }
+
+  MetricSample? get latestHeartSample {
+    MetricSample? latest;
+    for (final day in days) {
+      for (final sample in day.heartSamples) {
+        if (latest == null || sample.time.isAfter(latest.time)) {
+          latest = sample;
+        }
+      }
+    }
+    return latest;
+  }
 
   SleepAnalysis? get sleepAnalysis {
     final day = selectedDay;
@@ -197,8 +240,15 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> bootstrap() async {
     WidgetsBinding.instance.addObserver(this);
+
+    // Portfolio / screenshot builds only: flutter run --dart-define=SHOWCASE=true
+    const showcase = bool.fromEnvironment('SHOWCASE');
+    if (showcase) {
+      await _bootstrapShowcase();
+      return;
+    }
+
     try {
-      useDemoData = await _settings.getUseDemoData();
       geminiApiKey = await _settings.getGeminiApiKey();
       googleWebClientId = await _settings.getGoogleWebClientId();
       if (googleWebClientId == null || googleWebClientId!.trim().isEmpty) {
@@ -206,7 +256,6 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         await _settings.setGoogleWebClientId(googleWebClientId);
       }
       googleConnected = await _settings.getGoogleConnectedFlag();
-      liveSyncEnabled = await _settings.getLiveSyncEnabled();
       alertsEnabled = await _settings.getAlertsEnabled();
       themeMode = await _settings.getThemeMode();
       final profileJson = await _settings.getUserProfileJson();
@@ -218,12 +267,29 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       manualWorkouts = await _workoutStore.loadAll();
       await _healthClient.configure(serverClientId: googleWebClientId);
       if (alertsEnabled) await _notifications.init();
+      final cachedAi = await _settings.getAiAnalysis();
+      aiAnalysis = cachedAi.text;
+      aiAnalysisDayKey = cachedAi.dayKey;
     } catch (_) {
-      useDemoData = true;
       googleWebClientId ??= OAuthConfig.defaultWebClientId;
       try {
         await _healthClient.configure(serverClientId: googleWebClientId);
       } catch (_) {}
+    }
+
+    // Show last successful snapshot immediately (no demo filler).
+    final cached = await _healthCache.load();
+    if (cached != null && cached.days.isNotEmpty) {
+      days = _mergeManualWorkouts(
+        _scoreEngine.scoreDays(cached.days, profile: profile),
+      );
+      body = cached.body;
+      devices = cached.devices;
+      lastSyncedAt = cached.syncedAt;
+      selectedIndex = days.isEmpty ? 0 : days.length - 1;
+      loading = false;
+      notifyListeners();
+      await _loadJournalForSelected();
     }
 
     try {
@@ -231,19 +297,60 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       if (silent != null) {
         googleConnected = true;
         accountEmail = silent.email;
-        useDemoData = false;
         await _settings.setGoogleConnectedFlag(true);
-        await _settings.setUseDemoData(false);
+      } else if (googleConnected) {
+        // Flag said connected but silent restore failed — keep cached summary,
+        // clear the sticky "must reconnect" only after a real sign-out.
+        accountEmail = null;
       }
     } catch (_) {}
 
-    await refresh();
-    _restartLiveTimer();
+    await refresh(silent: days.isNotEmpty);
+  }
+
+  Future<void> _bootstrapShowcase() async {
+    themeMode = ThemeMode.dark;
+    googleConnected = true;
+    accountEmail = 'portfolio@openair.app';
+    lastSyncedAt = DateTime.now();
+    profile = const UserProfile(
+      ageYears: 28,
+      sex: BiologicalSex.male,
+      weightKg: 78.4,
+      heightCm: 178,
+    );
+    final bundle = await DemoHealthRepository().loadBundle(days: syncDayWindow);
+    days = _mergeManualWorkouts(
+      _scoreEngine.scoreDays(bundle.days, profile: profile),
+    );
+    body = bundle.body;
+    devices = bundle.devices;
+    selectedIndex = days.isEmpty ? 0 : days.length - 1;
+    aiAnalysis =
+        'Overnight recovery\n'
+        'Recovery landed in the green zone after a solid night. HRV held near '
+        'your recent baseline and resting heart rate stayed calm.\n\n'
+        'Sleep architecture\n'
+        'Sleep performance was strong relative to need, with a healthy mix of '
+        'deep and REM. A little less late-night wake time would push efficiency higher.\n\n'
+        'Today\'s plan\n'
+        'You still have strain capacity left. One focused workout is fine — '
+        'keep bedtime consistent tonight so tomorrow stays green.';
+    aiAnalysisDayKey = _ymd(days.last.date);
+    errorMessage = null;
+    loading = false;
+    notifyListeners();
+    try {
+      await _loadJournalForSelected();
+    } catch (_) {
+      todayJournal = null;
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && isLive && liveSyncEnabled) {
+    if (const bool.fromEnvironment('SHOWCASE')) return;
+    if (state == AppLifecycleState.resumed && googleConnected) {
       unawaited(refresh(silent: true));
     }
   }
@@ -251,17 +358,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _liveTimer?.cancel();
     _activeWorkoutTicker?.cancel();
     super.dispose();
-  }
-
-  void _restartLiveTimer() {
-    _liveTimer?.cancel();
-    if (!isLive || !liveSyncEnabled) return;
-    _liveTimer = Timer.periodic(livePollInterval, (_) {
-      unawaited(refresh(silent: true));
-    });
   }
 
   void selectDay(int index) {
@@ -277,7 +375,11 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       todayJournal = null;
       return;
     }
-    todayJournal = await _journalStore.loadForDate(day.date);
+    try {
+      todayJournal = await _journalStore.loadForDate(day.date);
+    } catch (_) {
+      todayJournal = null;
+    }
   }
 
   Future<void> updateJournal(JournalEntry entry) async {
@@ -347,21 +449,41 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     final previousSelected = selectedDay?.date;
     try {
       manualWorkouts = await _workoutStore.loadAll();
-      if (useDemoData || !googleConnected) {
-        final bundle = await _demoRepo.loadBundle(days: syncDayWindow);
-        days = _mergeManualWorkouts(
-          _scoreEngine.scoreDays(bundle.days, profile: profile),
-        );
-        body = _mergeBody(bundle.body);
-        devices = bundle.devices;
-      } else {
-        final bundle = await _healthClient.syncRecent(days: syncDayWindow);
-        days = _mergeManualWorkouts(
-          _scoreEngine.scoreDays(bundle.days, profile: profile),
-        );
-        body = _mergeBody(bundle.body);
-        devices = bundle.devices;
+
+      if (!googleConnected) {
+        loading = false;
+        errorMessage = null;
+        return;
       }
+
+      if (const bool.fromEnvironment('SHOWCASE')) {
+        loading = false;
+        errorMessage = null;
+        return;
+      }
+
+      final bundle = await _healthClient
+          .syncRecent(days: syncDayWindow)
+          .timeout(
+            syncTimeout,
+            onTimeout: () => throw TimeoutException(
+              'Google Health sync timed out. Pull to refresh after Fitbit syncs.',
+            ),
+          );
+      days = _mergeManualWorkouts(
+        _scoreEngine.scoreDays(bundle.days, profile: profile),
+      );
+      body = bundle.body;
+      devices = bundle.devices;
+      lastSyncedAt = DateTime.now();
+      await _maybeImportCloudBody(bundle.body);
+      await _healthCache.save(
+        days: days,
+        body: body,
+        devices: devices,
+        syncedAt: lastSyncedAt,
+      );
+
       if (previousSelected != null) {
         final i = days.indexWhere(
           (d) =>
@@ -373,68 +495,65 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         selectedIndex = days.isEmpty ? 0 : days.length - 1;
       }
-      lastSyncedAt = DateTime.now();
       loading = false;
       errorMessage = null;
       await _loadJournalForSelected();
       unawaited(_maybeNotifyAlerts());
+      unawaited(refreshAiAnalysis(force: false));
     } catch (e) {
-      errorMessage = e.toString();
-      if (days.isEmpty) {
-        final bundle = await _demoRepo.loadBundle(days: syncDayWindow);
-        days = _mergeManualWorkouts(
-          _scoreEngine.scoreDays(bundle.days, profile: profile),
-        );
-        body = _mergeBody(bundle.body);
-        devices = bundle.devices;
-        selectedIndex = days.length - 1;
-        useDemoData = true;
-      }
+      errorMessage = e
+          .toString()
+          .replaceFirst('Bad state: ', '')
+          .replaceFirst('Exception: ', '')
+          .replaceFirst('TimeoutException: ', '');
+      // Keep cached days — never wipe to demo on sync failure.
       loading = false;
       await _loadJournalForSelected();
     } finally {
       syncing = false;
       notifyListeners();
-      _restartLiveTimer();
     }
-  }
-
-  BodySnapshot? _mergeBody(BodySnapshot? cloud) {
-    if (cloud == null &&
-        profile.weightKg == null &&
-        profile.heightCm == null) {
-      return null;
-    }
-    return BodySnapshot(
-      weightKg: profile.weightKg ?? cloud?.weightKg,
-      heightCm: profile.heightCm ?? cloud?.heightCm,
-      bodyFatPercent: cloud?.bodyFatPercent,
-      vo2Max: cloud?.vo2Max,
-      measuredAt: cloud?.measuredAt,
-    );
   }
 
   Future<void> saveProfile(UserProfile next) async {
     profile = next;
     await _settings.setUserProfileJson(jsonEncode(next.toJson()));
     notifyListeners();
-    await refresh(silent: true);
+    if (googleConnected) await refresh(silent: true);
   }
 
-  Future<void> setUseDemoData(bool value) async {
-    useDemoData = value;
-    await _settings.setUseDemoData(value);
-    notifyListeners();
-    await refresh();
-    _restartLiveTimer();
+  /// Fill blank profile fields from Google Health body metrics.
+  Future<void> _maybeImportCloudBody(BodySnapshot? cloud) async {
+    if (cloud == null) return;
+    var next = profile;
+    var changed = false;
+    if (next.weightKg == null && cloud.weightKg != null) {
+      next = next.copyWith(weightKg: cloud.weightKg);
+      changed = true;
+    }
+    if (next.heightCm == null && cloud.heightCm != null) {
+      next = next.copyWith(heightCm: cloud.heightCm);
+      changed = true;
+    }
+    if (!changed) return;
+    profile = next;
+    await _settings.setUserProfileJson(jsonEncode(next.toJson()));
   }
 
-  Future<void> setLiveSyncEnabled(bool value) async {
-    liveSyncEnabled = value;
-    await _settings.setLiveSyncEnabled(value);
+  /// Overwrite profile weight/height from the latest Google Health snapshot.
+  Future<bool> importBodyFromGoogleHealth() async {
+    final cloud = body;
+    if (cloud == null ||
+        (cloud.weightKg == null && cloud.heightCm == null)) {
+      return false;
+    }
+    profile = profile.copyWith(
+      weightKg: cloud.weightKg ?? profile.weightKg,
+      heightCm: cloud.heightCm ?? profile.heightCm,
+    );
+    await _settings.setUserProfileJson(jsonEncode(profile.toJson()));
     notifyListeners();
-    _restartLiveTimer();
-    if (value && isLive) await refresh(silent: true);
+    return true;
   }
 
   Future<void> setAlertsEnabled(bool value) async {
@@ -535,9 +654,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     errorMessage = null;
     notifyListeners();
     try {
-      final clientId = (googleWebClientId == null || googleWebClientId!.trim().isEmpty)
-          ? OAuthConfig.defaultWebClientId
-          : googleWebClientId!;
+      final clientId =
+          (googleWebClientId == null || googleWebClientId!.trim().isEmpty)
+              ? OAuthConfig.defaultWebClientId
+              : googleWebClientId!;
       googleWebClientId = clientId;
       await _settings.setGoogleWebClientId(clientId);
       await _healthClient.configure(serverClientId: clientId);
@@ -545,11 +665,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       if (account == null) return;
       googleConnected = true;
       accountEmail = account.email;
-      useDemoData = false;
       await _settings.setGoogleConnectedFlag(true);
-      await _settings.setUseDemoData(false);
       await refresh();
-      _restartLiveTimer();
     } catch (e) {
       final text = e
           .toString()
@@ -565,11 +682,16 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     googleConnected = false;
     accountEmail = null;
     await _settings.setGoogleConnectedFlag(false);
-    useDemoData = true;
-    await _settings.setUseDemoData(true);
+    await _healthCache.clear();
+    await _settings.clearAiAnalysis();
+    days = const [];
+    body = null;
+    devices = const [];
+    lastSyncedAt = null;
+    aiAnalysis = null;
+    aiAnalysisDayKey = null;
+    loading = false;
     notifyListeners();
-    await refresh();
-    _restartLiveTimer();
   }
 
   Future<void> saveGoogleWebClientId(String? clientId) async {
@@ -584,6 +706,41 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     await _settings.setGeminiApiKey(key);
     geminiApiKey = (key == null || key.trim().isEmpty) ? null : key.trim();
     notifyListeners();
+    if (geminiReady) unawaited(refreshAiAnalysis(force: true));
+  }
+
+  Future<void> refreshAiAnalysis({bool force = false}) async {
+    if (!googleConnected || !geminiReady || days.isEmpty) return;
+    final day = selectedDay ?? days.last;
+    final dayKey = _ymd(day.date);
+    if (!force &&
+        aiAnalysis != null &&
+        aiAnalysisDayKey == dayKey &&
+        aiAnalysis!.trim().isNotEmpty) {
+      return;
+    }
+    if (aiAnalysisLoading) return;
+    aiAnalysisLoading = true;
+    notifyListeners();
+    try {
+      final recent =
+          days.length > 14 ? days.sublist(days.length - 14) : days;
+      final local = dayBriefing?.coaching;
+      final text = await _coach.generateDailyAnalysis(
+        apiKey: effectiveGeminiKey,
+        recentDays: recent,
+        profile: profile,
+        localBrief: local,
+      );
+      aiAnalysis = text;
+      aiAnalysisDayKey = dayKey;
+      await _settings.setAiAnalysis(dayKey, text);
+    } catch (_) {
+      // Keep prior analysis; local insight cards still cover the day.
+    } finally {
+      aiAnalysisLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> askCoach(String question) async {
@@ -591,20 +748,22 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     if (trimmed.isEmpty) return;
     chat = [...chat, ChatMessage(role: 'user', text: trimmed)];
     notifyListeners();
+    final recent = days.length > 14 ? days.sublist(days.length - 14) : days;
     try {
-      final key = geminiApiKey?.trim() ?? '';
+      final key = effectiveGeminiKey;
       final String answer;
       if (key.isEmpty) {
         answer = _localCoach.answer(
           question: trimmed,
-          recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+          recentDays: recent,
           profile: profile,
         );
       } else {
         answer = await _coach.ask(
           apiKey: key,
           question: trimmed,
-          recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+          recentDays: recent,
+          profile: profile,
         );
       }
       chat = [...chat, ChatMessage(role: 'assistant', text: answer)];
@@ -615,7 +774,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
           role: 'assistant',
           text: _localCoach.answer(
             question: trimmed,
-            recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+            recentDays: recent,
             profile: profile,
           ),
         ),

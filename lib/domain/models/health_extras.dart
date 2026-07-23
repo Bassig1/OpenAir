@@ -110,6 +110,28 @@ class HeartRateZones {
 
   int get total =>
       outOfRangeMinutes + fatBurnMinutes + cardioMinutes + peakMinutes;
+
+  Map<String, dynamic> toJson() => {
+        'outOfRangeMinutes': outOfRangeMinutes,
+        'fatBurnMinutes': fatBurnMinutes,
+        'cardioMinutes': cardioMinutes,
+        'peakMinutes': peakMinutes,
+      };
+
+  factory HeartRateZones.fromJson(Map<String, dynamic> json) {
+    return HeartRateZones(
+      outOfRangeMinutes: (json['outOfRangeMinutes'] as num?)?.toInt() ?? 0,
+      fatBurnMinutes: (json['fatBurnMinutes'] as num?)?.toInt() ??
+          (json['fatBurn'] as num?)?.toInt() ??
+          0,
+      cardioMinutes: (json['cardioMinutes'] as num?)?.toInt() ??
+          (json['cardio'] as num?)?.toInt() ??
+          0,
+      peakMinutes: (json['peakMinutes'] as num?)?.toInt() ??
+          (json['peak'] as num?)?.toInt() ??
+          0,
+    );
+  }
 }
 
 class BodySnapshot {
@@ -126,6 +148,24 @@ class BodySnapshot {
   final double? vo2Max;
   final double? heightCm;
   final DateTime? measuredAt;
+
+  Map<String, dynamic> toJson() => {
+        'weightKg': weightKg,
+        'bodyFatPercent': bodyFatPercent,
+        'vo2Max': vo2Max,
+        'heightCm': heightCm,
+        'measuredAt': measuredAt?.toIso8601String(),
+      };
+
+  factory BodySnapshot.fromJson(Map<String, dynamic> json) {
+    return BodySnapshot(
+      weightKg: (json['weightKg'] as num?)?.toDouble(),
+      bodyFatPercent: (json['bodyFatPercent'] as num?)?.toDouble(),
+      vo2Max: (json['vo2Max'] as num?)?.toDouble(),
+      heightCm: (json['heightCm'] as num?)?.toDouble(),
+      measuredAt: DateTime.tryParse('${json['measuredAt'] ?? ''}'),
+    );
+  }
 }
 
 class PairedDeviceInfo {
@@ -140,6 +180,22 @@ class PairedDeviceInfo {
   final String name;
   final String? model;
   final DateTime? lastSync;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'model': model,
+        'lastSync': lastSync?.toIso8601String(),
+      };
+
+  factory PairedDeviceInfo.fromJson(Map<String, dynamic> json) {
+    return PairedDeviceInfo(
+      id: '${json['id'] ?? ''}',
+      name: '${json['name'] ?? 'Device'}',
+      model: json['model']?.toString(),
+      lastSync: DateTime.tryParse('${json['lastSync'] ?? ''}'),
+    );
+  }
 }
 
 class RecoveryBreakdown {
@@ -158,6 +214,26 @@ class RecoveryBreakdown {
   final double spo2Contribution;
   final int sleepNeededMinutes;
   final int sleepDebtMinutes;
+
+  Map<String, dynamic> toJson() => {
+        'sleepContribution': sleepContribution,
+        'hrvContribution': hrvContribution,
+        'rhrContribution': rhrContribution,
+        'spo2Contribution': spo2Contribution,
+        'sleepNeededMinutes': sleepNeededMinutes,
+        'sleepDebtMinutes': sleepDebtMinutes,
+      };
+
+  factory RecoveryBreakdown.fromJson(Map<String, dynamic> json) {
+    return RecoveryBreakdown(
+      sleepContribution: (json['sleepContribution'] as num?)?.toDouble() ?? 0,
+      hrvContribution: (json['hrvContribution'] as num?)?.toDouble() ?? 0,
+      rhrContribution: (json['rhrContribution'] as num?)?.toDouble() ?? 0,
+      spo2Contribution: (json['spo2Contribution'] as num?)?.toDouble() ?? 0,
+      sleepNeededMinutes: (json['sleepNeededMinutes'] as num?)?.toInt() ?? 480,
+      sleepDebtMinutes: (json['sleepDebtMinutes'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 class InsightItem {
@@ -170,6 +246,20 @@ class InsightItem {
   final String title;
   final String body;
   final String category; // recovery | sleep | strain | stress | cardio
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'body': body,
+        'category': category,
+      };
+
+  factory InsightItem.fromJson(Map<String, dynamic> json) {
+    return InsightItem(
+      title: '${json['title'] ?? ''}',
+      body: '${json['body'] ?? ''}',
+      category: '${json['category'] ?? 'recovery'}',
+    );
+  }
 }
 
 class WeeklyReport {
