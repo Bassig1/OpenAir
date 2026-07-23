@@ -34,7 +34,7 @@ class _CoachScreenState extends State<CoachScreen> {
   Widget build(BuildContext context) {
     final colors = OpenAirColors.of(context);
     final app = context.watch<AppController>();
-    final hasKey = (app.geminiApiKey ?? '').isNotEmpty;
+    final ready = app.geminiReady;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,19 +49,20 @@ class _CoachScreenState extends State<CoachScreen> {
       ),
       body: Column(
         children: [
-          if (!hasKey)
-            Material(
-              color: colors.surfaceElevated,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Text(
-                  'Using on-device OpenAir coach for now. Add a free Gemini key in Settings later for smarter chat — everything else works without it.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                ),
+          Material(
+            color: colors.surfaceElevated,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Text(
+                ready
+                    ? 'Gemini free-tier coaching is on automatically while you’re signed into Google Health.'
+                    : 'Connect Google Health to unlock Gemini coaching on the project free tier.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colors.textSecondary,
+                    ),
               ),
             ),
+          ),
           Expanded(
             child: app.chat.isEmpty
                 ? ListView(
@@ -94,7 +95,7 @@ class _CoachScreenState extends State<CoachScreen> {
                           ])
                             ActionChip(
                               label: Text(q),
-                              onPressed: !hasKey
+                              onPressed: !ready
                                   ? null
                                   : () async {
                                       _controller.text = q;
@@ -143,7 +144,7 @@ class _CoachScreenState extends State<CoachScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      enabled: hasKey && !_sending,
+                      enabled: ready && !_sending,
                       minLines: 1,
                       maxLines: 4,
                       decoration: const InputDecoration(
@@ -154,7 +155,7 @@ class _CoachScreenState extends State<CoachScreen> {
                   ),
                   const SizedBox(width: 10),
                   IconButton.filled(
-                    onPressed: !hasKey || _sending ? null : () => _send(app),
+                    onPressed: !ready || _sending ? null : () => _send(app),
                     style: IconButton.styleFrom(
                       backgroundColor: colors.green,
                       foregroundColor: Colors.black,

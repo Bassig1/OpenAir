@@ -276,24 +276,38 @@ class WorkoutTile extends StatelessWidget {
 }
 
 class LiveBadge extends StatelessWidget {
-  const LiveBadge({super.key, required this.live, this.syncing = false});
+  const LiveBadge({
+    super.key,
+    required this.live,
+    this.syncing = false,
+    this.gap = false,
+  });
 
   final bool live;
   final bool syncing;
+  final bool gap;
 
   @override
   Widget build(BuildContext context) {
     final colors = OpenAirColors.of(context);
+    final accent = !live
+        ? colors.textMuted
+        : gap
+            ? colors.strain
+            : colors.green;
+    final label = syncing
+        ? 'SYNC'
+        : !live
+            ? 'DEMO'
+            : gap
+                ? 'STALE'
+                : 'LIVE';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: live
-            ? colors.green.withValues(alpha: 0.15)
-            : colors.surfaceElevated,
+        color: accent.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(
-          color: live ? colors.green : colors.border,
-        ),
+        border: Border.all(color: accent),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -304,7 +318,7 @@ class LiveBadge extends StatelessWidget {
               height: 10,
               child: CircularProgressIndicator(
                 strokeWidth: 1.5,
-                color: colors.green,
+                color: accent,
               ),
             )
           else
@@ -312,15 +326,15 @@ class LiveBadge extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: live ? colors.green : colors.textMuted,
+                color: accent,
                 shape: BoxShape.circle,
               ),
             ),
           const SizedBox(width: 6),
           Text(
-            live ? 'LIVE' : 'DEMO',
+            label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: live ? colors.green : colors.textMuted,
+                  color: accent,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                 ),

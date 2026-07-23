@@ -32,8 +32,7 @@ class GoogleHealthClient {
     String? serverClientId,
   })  : _http = httpClient ?? http.Client(),
         _serverClientId = _normalizeClientId(serverClientId),
-        _googleSignIn = googleSignIn ??
-            _buildSignIn(_normalizeClientId(serverClientId));
+        _googleSignInOverride = googleSignIn;
 
   static const healthScopes = <String>[
     'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
@@ -51,9 +50,28 @@ class GoogleHealthClient {
   static const _wearablesFamily =
       'users/me/dataSourceFamilies/google-wearables';
 
-  GoogleSignIn _googleSignIn;
+  /// Google Health caps these types at 14 days per request.
+  static const _fourteenDayTypes = {
+    'heart-rate',
+    'active-minutes',
+    'total-calories',
+  };
+
+  static const _requestTimeout = Duration(seconds: 25);
+
+  final GoogleSignIn? _googleSignInOverride;
+  GoogleSignIn? _googleSignInLazy;
   final http.Client _http;
   String? _serverClientId;
+
+  GoogleSignIn get _googleSignIn {
+    return _googleSignInOverride ??
+        (_googleSignInLazy ??= _buildSignIn(_serverClientId));
+  }
+
+  set _googleSignIn(GoogleSignIn value) {
+    _googleSignInLazy = value;
+  }
 
   GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
 
@@ -72,11 +90,11 @@ class GoogleHealthClient {
     );
   }
 
-  /// Call after the user pastes a Web OAuth client ID from Cloud Console.
+  /// Update Web client ID without signing the user out (keeps session across launches).
   Future<void> configure({String? serverClientId}) async {
-    final next = _normalizeClientId(serverClientId);
+    final next =
+        _normalizeClientId(serverClientId) ?? OAuthConfig.defaultWebClientId;
     if (next == _serverClientId) return;
-    await _googleSignIn.signOut();
     _serverClientId = next;
     _googleSignIn = _buildSignIn(next);
   }
@@ -103,8 +121,25 @@ class GoogleHealthClient {
     }
   }
 
-  Future<GoogleSignInAccount?> signInSilently() =>
-      _googleSignIn.signInSilently();
+  /// Restore the previous Google session. Does not force a UI prompt.
+  Future<GoogleSignInAccount?> signInSilently() async {
+    try {
+      if (_serverClientId == null) {
+        await configure(serverClientId: OAuthConfig.defaultWebClientId);
+      }
+      var account = await _googleSignIn.signInSilently();
+      account ??= _googleSignIn.currentUser;
+      if (account == null) return null;
+
+      final auth = await account.authentication;
+      if (auth.accessToken == null || auth.accessToken!.isEmpty) {
+        return null;
+      }
+      return account;
+    } on PlatformException {
+      return null;
+    }
+  }
 
   Future<void> signOut() => _googleSignIn.signOut();
 
@@ -303,10 +338,42 @@ class GoogleHealthClient {
     required DateTime start,
     required DateTime end,
   }) async {
+    final maxDays = _fourteenDayTypes.contains(dataType) ? 14 : 90;
+    final span = end.difference(start).inDays;
+    if (span > maxDays) {
+      final out = <DateTime, double>{};
+      var cursor = start;
+      while (cursor.isBefore(end)) {
+        final chunkEnd = cursor.add(Duration(days: maxDays));
+        final actualEnd = chunkEnd.isAfter(end) ? end : chunkEnd;
+        out.addAll(await _dailyRollupOnce(
+          headers: headers,
+          dataType: dataType,
+          start: cursor,
+          end: actualEnd,
+        ));
+        cursor = actualEnd;
+      }
+      return out;
+    }
+    return _dailyRollupOnce(
+      headers: headers,
+      dataType: dataType,
+      start: start,
+      end: end,
+    );
+  }
+
+  Future<Map<DateTime, double>> _dailyRollupOnce({
+    required Map<String, String> headers,
+    required String dataType,
+    required DateTime start,
+    required DateTime end,
+  }) async {
     final uri = Uri.parse(
       '$_base/users/me/dataTypes/$dataType/dataPoints:dailyRollUp',
     );
-    final body = jsonEncode({
+    final withWearables = jsonEncode({
       'range': {
         'start': _civil(start),
         'end': _civil(end),
@@ -314,28 +381,41 @@ class GoogleHealthClient {
       'windowSizeDays': 1,
       'dataSourceFamily': _wearablesFamily,
     });
+    final withoutWearables = jsonEncode({
+      'range': {'start': _civil(start), 'end': _civil(end)},
+      'windowSizeDays': 1,
+    });
 
-    final response = await _http.post(uri, headers: headers, body: body);
-    if (response.statusCode == 400 || response.statusCode == 404) {
-      // Retry without wearables filter (some accounts only have mixed sources).
-      final fallback = await _http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({
-          'range': {'start': _civil(start), 'end': _civil(end)},
-          'windowSizeDays': 1,
-        }),
-      );
-      if (fallback.statusCode >= 400) return {};
-      return _parseRollup(fallback.body, dataType);
-    }
-    if (response.statusCode >= 400) {
+    final response =
+        await _timedPost(uri, headers: headers, body: withWearables);
+    if (response.statusCode == 401 || response.statusCode == 403) {
       throw HttpException(
-        'Health API dailyRollUp/$dataType failed '
-        '(${response.statusCode}): ${response.body}',
+        'Health API auth failed (${response.statusCode}). Reconnect Google Health.',
       );
     }
-    return _parseRollup(response.body, dataType);
+
+    Map<DateTime, double> parsed = {};
+    if (response.statusCode < 400) {
+      parsed = _parseRollup(response.body, dataType);
+    }
+
+    // Prefer wearables; if empty/failed, fall back to all sources (phone + cloud).
+    if (parsed.isEmpty ||
+        response.statusCode == 400 ||
+        response.statusCode == 404) {
+      final fallback =
+          await _timedPost(uri, headers: headers, body: withoutWearables);
+      if (fallback.statusCode == 401 || fallback.statusCode == 403) {
+        throw HttpException(
+          'Health API auth failed (${fallback.statusCode}). Reconnect Google Health.',
+        );
+      }
+      if (fallback.statusCode < 400) {
+        final alt = _parseRollup(fallback.body, dataType);
+        if (alt.isNotEmpty) parsed = alt;
+      }
+    }
+    return parsed;
   }
 
   Map<DateTime, double> _parseRollup(String rawBody, String dataType) {
@@ -423,7 +503,12 @@ class GoogleHealthClient {
       'pageSize': '100',
     });
 
-    final response = await _http.get(uri, headers: headers);
+    final response = await _timedGet(uri, headers: headers);
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw HttpException(
+        'Health API auth failed (${response.statusCode}). Reconnect Google Health.',
+      );
+    }
     if (response.statusCode >= 400) return {};
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -511,7 +596,7 @@ class GoogleHealthClient {
     final uri = Uri.parse(
       '$_base/users/me/dataTypes/daily-heart-rate-zones/dataPoints',
     ).replace(queryParameters: {'filter': filter, 'pageSize': '100'});
-    final response = await _http.get(uri, headers: headers);
+    final response = await _timedGet(uri, headers: headers);
     if (response.statusCode >= 400) return {};
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final points = (body['dataPoints'] as List<dynamic>? ?? const []);
@@ -564,7 +649,7 @@ class GoogleHealthClient {
         'AND exercise.interval.civil_start_time < "${_ymd(end)}"';
     final uri = Uri.parse('$_base/users/me/dataTypes/exercise/dataPoints')
         .replace(queryParameters: {'filter': filter, 'pageSize': '25'});
-    final response = await _http.get(uri, headers: headers);
+    final response = await _timedGet(uri, headers: headers);
     if (response.statusCode >= 400) return [];
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final points = (body['dataPoints'] as List<dynamic>? ?? const []);
@@ -642,34 +727,57 @@ class GoogleHealthClient {
   Future<BodySnapshot?> _fetchBody({
     required Map<String, String> headers,
   }) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     final start = now.subtract(const Duration(days: 90));
+    final end = now.add(const Duration(days: 1));
     final weight = await _latestSample(
       headers: headers,
       dataType: 'weight',
       filter:
-          'weight.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
-      keys: const ['weightKilograms', 'kilograms', 'value'],
+          'weight.sample_time.physical_time >= "${start.toIso8601String()}" '
+          'AND weight.sample_time.physical_time < "${end.toIso8601String()}"',
+      keys: const [
+        'weightKilograms',
+        'kilograms',
+        'weightPounds',
+        'pounds',
+        'value',
+      ],
     );
     final fat = await _latestSample(
       headers: headers,
       dataType: 'body-fat',
       filter:
-          'body_fat.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
+          'body_fat.sample_time.physical_time >= "${start.toIso8601String()}" '
+          'AND body_fat.sample_time.physical_time < "${end.toIso8601String()}"',
       keys: const ['percentage', 'bodyFatPercentage', 'value'],
     );
     final height = await _latestSample(
       headers: headers,
       dataType: 'height',
       filter:
-          'height.sample_time.physical_time >= "${start.toUtc().toIso8601String()}"',
-      keys: const ['heightMeters', 'meters', 'value'],
+          'height.sample_time.physical_time >= "${start.toIso8601String()}" '
+          'AND height.sample_time.physical_time < "${end.toIso8601String()}"',
+      keys: const ['heightMeters', 'meters', 'inches', 'value'],
     );
     if (weight == null && fat == null && height == null) return null;
+
+    double? heightCm;
+    if (height != null) {
+      final v = height.value;
+      if (v < 3.5) {
+        heightCm = v * 100; // meters
+      } else if (v < 100) {
+        heightCm = v * 2.54; // inches
+      } else {
+        heightCm = v; // centimeters
+      }
+    }
+
     return BodySnapshot(
       weightKg: weight?.value,
       bodyFatPercent: fat?.value,
-      heightCm: height == null ? null : height.value * 100,
+      heightCm: heightCm,
       measuredAt: weight?.time ?? fat?.time ?? height?.time,
     );
   }
@@ -695,7 +803,7 @@ class GoogleHealthClient {
     required Map<String, String> headers,
   }) async {
     final uri = Uri.parse('$_base/users/me/pairedDevices');
-    final response = await _http.get(uri, headers: headers);
+    final response = await _timedGet(uri, headers: headers);
     if (response.statusCode >= 400) return [];
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final devices = (body['pairedDevices'] as List<dynamic>? ??
@@ -726,7 +834,7 @@ class GoogleHealthClient {
       'pageSize': '25',
     });
 
-    final response = await _http.get(uri, headers: headers);
+    final response = await _timedGet(uri, headers: headers);
     if (response.statusCode >= 400) return {};
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -809,14 +917,15 @@ class GoogleHealthClient {
     required DateTime start,
     required DateTime end,
   }) async {
-    // Intraday HR is capped at 14-day windows — we already request ≤14 days.
-    final filter =
-        'heart_rate.sample_time.physical_time >= "${start.toUtc().toIso8601String()}" '
-        'AND heart_rate.sample_time.physical_time < "${end.toUtc().toIso8601String()}"';
-    return _listSamples(
+    return _listSamplesChunked(
       headers: headers,
       dataType: 'heart-rate',
-      filter: filter,
+      start: start,
+      end: end,
+      maxDays: 14,
+      filterFor: (chunkStart, chunkEnd) =>
+          'heart_rate.sample_time.physical_time >= "${chunkStart.toUtc().toIso8601String()}" '
+          'AND heart_rate.sample_time.physical_time < "${chunkEnd.toUtc().toIso8601String()}"',
       valueKeys: const ['beatsPerMinute', 'beats_per_minute', 'bpm'],
     );
   }
@@ -826,19 +935,56 @@ class GoogleHealthClient {
     required DateTime start,
     required DateTime end,
   }) async {
-    final filter =
-        'oxygen_saturation.sample_time.physical_time >= "${start.toUtc().toIso8601String()}" '
-        'AND oxygen_saturation.sample_time.physical_time < "${end.toUtc().toIso8601String()}"';
-    return _listSamples(
+    return _listSamplesChunked(
       headers: headers,
       dataType: 'oxygen-saturation',
-      filter: filter,
+      start: start,
+      end: end,
+      maxDays: 90,
+      filterFor: (chunkStart, chunkEnd) =>
+          'oxygen_saturation.sample_time.physical_time >= "${chunkStart.toUtc().toIso8601String()}" '
+          'AND oxygen_saturation.sample_time.physical_time < "${chunkEnd.toUtc().toIso8601String()}"',
       valueKeys: const [
         'saturationPercentage',
         'percentage',
         'oxygenSaturationPercentage',
       ],
     );
+  }
+
+  Future<List<MetricSample>> _listSamplesChunked({
+    required Map<String, String> headers,
+    required String dataType,
+    required DateTime start,
+    required DateTime end,
+    required int maxDays,
+    required String Function(DateTime start, DateTime end) filterFor,
+    required List<String> valueKeys,
+  }) async {
+    final span = end.difference(start).inDays;
+    if (span <= maxDays) {
+      return _listSamples(
+        headers: headers,
+        dataType: dataType,
+        filter: filterFor(start, end),
+        valueKeys: valueKeys,
+      );
+    }
+
+    final out = <MetricSample>[];
+    var cursor = start;
+    while (cursor.isBefore(end)) {
+      final chunkEnd = cursor.add(Duration(days: maxDays));
+      final actualEnd = chunkEnd.isAfter(end) ? end : chunkEnd;
+      out.addAll(await _listSamples(
+        headers: headers,
+        dataType: dataType,
+        filter: filterFor(cursor, actualEnd),
+        valueKeys: valueKeys,
+      ));
+      cursor = actualEnd;
+    }
+    return out;
   }
 
   Future<List<MetricSample>> _listSamples({
@@ -849,6 +995,7 @@ class GoogleHealthClient {
   }) async {
     final out = <MetricSample>[];
     String? pageToken;
+    var pages = 0;
 
     do {
       final params = <String, String>{
@@ -859,14 +1006,19 @@ class GoogleHealthClient {
 
       final uri = Uri.parse('$_base/users/me/dataTypes/$dataType/dataPoints')
           .replace(queryParameters: params);
-      final response = await _http.get(uri, headers: headers);
+      final response = await _timedGet(uri, headers: headers);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw HttpException(
+          'Health API auth failed (${response.statusCode}). Reconnect Google Health.',
+        );
+      }
       if (response.statusCode >= 400) break;
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final points = (body['dataPoints'] as List<dynamic>? ?? const []);
       for (final raw in points) {
         final point = raw as Map<String, dynamic>;
-        final time = _sampleTime(point);
+        final time = _sampleTime(point, dataType: dataType);
         final value = _numAt(point[_camel(dataType)], valueKeys) ??
             _numAt(point['value'], valueKeys) ??
             _firstNumeric(point);
@@ -875,9 +1027,29 @@ class GoogleHealthClient {
       }
       pageToken = body['nextPageToken'] as String?;
       if (pageToken != null && pageToken.isEmpty) pageToken = null;
+      pages++;
+      // Cap pages so a dense Fitbit feed can't hang the UI forever.
+      if (pages >= 20) break;
     } while (pageToken != null);
 
     return out;
+  }
+
+  Future<http.Response> _timedGet(
+    Uri uri, {
+    required Map<String, String> headers,
+  }) {
+    return _http.get(uri, headers: headers).timeout(_requestTimeout);
+  }
+
+  Future<http.Response> _timedPost(
+    Uri uri, {
+    required Map<String, String> headers,
+    required String body,
+  }) {
+    return _http
+        .post(uri, headers: headers, body: body)
+        .timeout(_requestTimeout);
   }
 
   Map<String, dynamic> _civil(DateTime dt) => {
@@ -912,15 +1084,59 @@ class GoogleHealthClient {
     return null;
   }
 
-  DateTime? _sampleTime(Map<String, dynamic> point) {
-    final sample = point['sampleTime'] as Map<String, dynamic>?;
-    if (sample != null) {
-      final physical = DateTime.tryParse('${sample['physicalTime']}');
-      if (physical != null) return physical.toLocal();
-      final civil = _dateFromCivil(sample['civilTime'] as Map?);
-      if (civil != null) return civil;
+  /// Google nests sampleTime under the typed payload (e.g. heartRate.sampleTime).
+  DateTime? _sampleTime(Map<String, dynamic> point, {String? dataType}) {
+    if (dataType != null) {
+      final nested = point[_camel(dataType)];
+      if (nested is Map) {
+        final fromNested =
+            _readSampleTime(Map<String, dynamic>.from(nested));
+        if (fromNested != null) return fromNested;
+      }
     }
-    return DateTime.tryParse('${point['startTime']}')?.toLocal();
+    for (final value in point.values) {
+      if (value is Map &&
+          (value.containsKey('sampleTime') ||
+              value.containsKey('sample_time'))) {
+        final fromNested =
+            _readSampleTime(Map<String, dynamic>.from(value));
+        if (fromNested != null) return fromNested;
+      }
+    }
+    return _readSampleTime(point);
+  }
+
+  DateTime? _readSampleTime(Map<String, dynamic> node) {
+    final sample = node['sampleTime'] as Map<String, dynamic>? ??
+        node['sample_time'] as Map<String, dynamic>?;
+    if (sample != null) {
+      final physical = DateTime.tryParse(
+        '${sample['physicalTime'] ?? sample['physical_time']}',
+      );
+      if (physical != null) return physical.toLocal();
+      final civilNode = sample['civilTime'] ?? sample['civil_time'];
+      if (civilNode is Map) {
+        final dateMap = civilNode['date'] is Map
+            ? Map<String, dynamic>.from(civilNode['date'] as Map)
+            : Map<String, dynamic>.from(civilNode);
+        final civil = _dateFromCivil(dateMap);
+        if (civil != null) {
+          final time = civilNode['time'];
+          if (time is Map) {
+            return DateTime(
+              civil.year,
+              civil.month,
+              civil.day,
+              (time['hours'] as num?)?.toInt() ?? 0,
+              (time['minutes'] as num?)?.toInt() ?? 0,
+              (time['seconds'] as num?)?.toInt() ?? 0,
+            );
+          }
+          return civil;
+        }
+      }
+    }
+    return DateTime.tryParse('${node['startTime']}')?.toLocal();
   }
 
   bool _sameDay(DateTime a, DateTime b) =>

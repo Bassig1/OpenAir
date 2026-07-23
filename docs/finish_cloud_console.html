@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OpenAir Cloud Console — finish these 3 steps</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.45; }
+    h1 { font-size: 1.4rem; }
+    .step { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    code, .val { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
+    button, a.btn {
+      display: inline-block; margin: 6px 8px 6px 0; padding: 10px 14px;
+      background: #1a73e8; color: #fff; border: 0; border-radius: 8px;
+      text-decoration: none; cursor: pointer; font-size: 14px;
+    }
+    button.secondary { background: #444; }
+    .ok { color: #0b7; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>OpenAir — finish Google Cloud (3 clicks)</h1>
+  <p>I cannot enter your Google password. Use <strong>Chrome</strong> (where you are already signed in) and do these three steps. Values copy with one click.</p>
+
+  <div class="step">
+    <h2>1) Publish for other users</h2>
+    <a class="btn" href="https://console.cloud.google.com/auth/audience?project=YOUR_GCP_PROJECT" target="_blank">Open Audience</a>
+    <p>Click <strong>Publish app</strong> → confirm <strong>In production</strong>.</p>
+  </div>
+
+  <div class="step">
+    <h2>2) Add Health scopes (if missing)</h2>
+    <a class="btn" href="https://console.cloud.google.com/auth/scopes?project=YOUR_GCP_PROJECT" target="_blank">Open Data Access / Scopes</a>
+    <p>Add or remove scopes → search Google Health → enable these four readonly scopes → Save.</p>
+    <button class="secondary" onclick="copy(`https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly
+https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly
+https://www.googleapis.com/auth/googlehealth.sleep.readonly
+https://www.googleapis.com/auth/googlehealth.profile.readonly`)">Copy all 4 scope URLs</button>
+  </div>
+
+  <div class="step">
+    <h2>3) Create Android OAuth client</h2>
+    <a class="btn" href="https://console.cloud.google.com/auth/clients/create?project=YOUR_GCP_PROJECT" target="_blank">Open Create OAuth client</a>
+    <p>Application type: <strong>Android</strong></p>
+    <p>Package name: <span class="val">com.openair.openair</span>
+      <button class="secondary" onclick="copy('com.openair.openair')">Copy</button></p>
+    <p>SHA-1: <span class="val">7E:94:37:DD:EF:47:05:C0:BC:CA:7C:15:A0:98:66:C7:23:03:6A:78</span>
+      <button class="secondary" onclick="copy('7E:94:37:DD:EF:47:05:C0:BC:CA:7C:15:A0:98:66:C7:23:03:6A:78')">Copy</button></p>
+    <p>Name: OpenAir Android → <strong>Create</strong></p>
+    <p>Keep your existing <strong>Web</strong> client (already in the app).</p>
+  </div>
+
+  <p id="status"></p>
+  <script>
+    function copy(t) {
+      navigator.clipboard.writeText(t).then(() => {
+        document.getElementById('status').innerHTML = '<span class="ok">Copied.</span>';
+      });
+    }
+    // Auto-open the three tabs
+    window.addEventListener('load', () => {
+      setTimeout(() => window.open('https://console.cloud.google.com/auth/audience?project=YOUR_GCP_PROJECT', '_blank'), 200);
+      setTimeout(() => window.open('https://console.cloud.google.com/auth/scopes?project=YOUR_GCP_PROJECT', '_blank'), 600);
+      setTimeout(() => window.open('https://console.cloud.google.com/auth/clients/create?project=YOUR_GCP_PROJECT', '_blank'), 1000);
+    });
+  </script>
+</body>
+</html>
