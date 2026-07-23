@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../config/oauth_config.dart';
 import '../data/gemini/gemini_coach.dart';
+import '../data/gemini/local_coach.dart';
 import '../data/health/demo_health_repository.dart';
 import '../data/health/google_health_client.dart';
 import '../data/local/journal_store.dart';
@@ -45,6 +47,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         _healthClient = healthClient ?? GoogleHealthClient(),
         _scoreEngine = scoreEngine ?? const ScoreEngine(),
         _coach = coach ?? GeminiCoach(),
+        _localCoach = const LocalCoach(),
         _journalStore = journalStore ?? JournalStore(),
         _workoutStore = workoutStore ?? WorkoutStore(),
         _notifications = notifications ?? NotificationService();
@@ -54,6 +57,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final GoogleHealthClient _healthClient;
   final ScoreEngine _scoreEngine;
   final GeminiCoach _coach;
+  final LocalCoach _localCoach;
   final JournalStore _journalStore;
   final WorkoutStore _workoutStore;
   final NotificationService _notifications;
@@ -197,6 +201,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       useDemoData = await _settings.getUseDemoData();
       geminiApiKey = await _settings.getGeminiApiKey();
       googleWebClientId = await _settings.getGoogleWebClientId();
+      if (googleWebClientId == null || googleWebClientId!.trim().isEmpty) {
+        googleWebClientId = OAuthConfig.defaultWebClientId;
+        await _settings.setGoogleWebClientId(googleWebClientId);
+      }
       googleConnected = await _settings.getGoogleConnectedFlag();
       liveSyncEnabled = await _settings.getLiveSyncEnabled();
       alertsEnabled = await _settings.getAlertsEnabled();
@@ -212,6 +220,10 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       if (alertsEnabled) await _notifications.init();
     } catch (_) {
       useDemoData = true;
+      googleWebClientId ??= OAuthConfig.defaultWebClientId;
+      try {
+        await _healthClient.configure(serverClientId: googleWebClientId);
+      } catch (_) {}
     }
 
     try {
@@ -219,7 +231,9 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       if (silent != null) {
         googleConnected = true;
         accountEmail = silent.email;
+        useDemoData = false;
         await _settings.setGoogleConnectedFlag(true);
+        await _settings.setUseDemoData(false);
       }
     } catch (_) {}
 
@@ -521,7 +535,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     errorMessage = null;
     notifyListeners();
     try {
-      await _healthClient.configure(serverClientId: googleWebClientId);
+      final clientId = (googleWebClientId == null || googleWebClientId!.trim().isEmpty)
+          ? OAuthConfig.defaultWebClientId
+          : googleWebClientId!;
+      googleWebClientId = clientId;
+      await _settings.setGoogleWebClientId(clientId);
+      await _healthClient.configure(serverClientId: clientId);
       final account = await _healthClient.signIn();
       if (account == null) return;
       googleConnected = true;
@@ -573,16 +592,33 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     chat = [...chat, ChatMessage(role: 'user', text: trimmed)];
     notifyListeners();
     try {
-      final answer = await _coach.ask(
-        apiKey: geminiApiKey ?? '',
-        question: trimmed,
-        recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
-      );
+      final key = geminiApiKey?.trim() ?? '';
+      final String answer;
+      if (key.isEmpty) {
+        answer = _localCoach.answer(
+          question: trimmed,
+          recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+          profile: profile,
+        );
+      } else {
+        answer = await _coach.ask(
+          apiKey: key,
+          question: trimmed,
+          recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+        );
+      }
       chat = [...chat, ChatMessage(role: 'assistant', text: answer)];
     } catch (e) {
       chat = [
         ...chat,
-        ChatMessage(role: 'assistant', text: 'Could not reach Gemini: $e'),
+        ChatMessage(
+          role: 'assistant',
+          text: _localCoach.answer(
+            question: trimmed,
+            recentDays: days.length > 14 ? days.sublist(days.length - 14) : days,
+            profile: profile,
+          ),
+        ),
       ];
     }
     notifyListeners();

@@ -83,6 +83,48 @@ class TodayScreen extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (!app.isLive) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: colors.green),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Connect live Fitbit data',
+                                  style: TextStyle(
+                                    color: colors.green,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'OAuth is already configured in this build. Sign in with the Google account linked to Fitbit / Google Health. Keep the Fitbit app syncing your watch.',
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                FilledButton.icon(
+                                  onPressed: app.syncing ? null : app.connectGoogle,
+                                  icon: const Icon(Icons.favorite),
+                                  label: const Text('Connect Google Health'),
+                                ),
+                                TextButton(
+                                  onPressed: () => context.push('/settings'),
+                                  child: const Text('Open Settings'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 14),
                         Text(
                           DateFormat('EEEE, MMM d').format(day.date),
