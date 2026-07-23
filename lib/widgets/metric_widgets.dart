@@ -43,6 +43,8 @@ class MetricTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: accent ?? colors.textPrimary,
                   fontWeight: FontWeight.w700,

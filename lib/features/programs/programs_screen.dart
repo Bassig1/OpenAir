@@ -18,7 +18,7 @@ class ProgramsScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           Text(
-            'Guided plans inspired by Fitbit Premium programs and Whoop coaching themes.',
+            'Guided plans guided recovery and training themes.',
             style: TextStyle(color: colors.textSecondary),
           ),
           const SizedBox(height: 16),

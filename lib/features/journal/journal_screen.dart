@@ -54,7 +54,7 @@ class _JournalScreenState extends State<JournalScreen> {
             }),
           const SizedBox(height: 16),
           Text(
-            'Log behaviors that affect recovery — same idea as Whoop Journal.',
+            'Log behaviors that affect recovery — same idea as daily behavior logging.',
             style: TextStyle(color: colors.textSecondary),
           ),
           const SizedBox(height: 12),

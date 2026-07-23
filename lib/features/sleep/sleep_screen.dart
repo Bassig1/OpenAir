@@ -133,7 +133,36 @@ class SleepScreen extends StatelessWidget {
           ),
           if (app.sleepAnalysis != null) ...[
             const SizedBox(height: 28),
-            const SectionHeader('Advanced sleep analysis'),
+            const SectionHeader('Sleep coach'),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    app.sleepAnalysis!.summary,
+                    style: TextStyle(color: colors.textPrimary, height: 1.4),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    app.sleepAnalysis!.consistencyLabel,
+                    style: TextStyle(
+                      color: colors.green,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const SectionHeader('Sleep architecture'),
             const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
@@ -141,36 +170,53 @@ class SleepScreen extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 1.35,
+              childAspectRatio: 1.2,
               children: [
                 MetricTile(
                   label: 'Efficiency',
-                  value: '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(0)}%',
+                  value: '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(1)}%',
+                  hint: 'asleep / time in bed',
                   accent: colors.sleep,
                 ),
                 MetricTile(
                   label: 'Restorative',
-                  value: '${app.sleepAnalysis!.restorativePercent.toStringAsFixed(0)}%',
-                  hint: formatMinutes(app.sleepAnalysis!.restorativeMinutes),
+                  value: '${app.sleepAnalysis!.restorativePercent.toStringAsFixed(1)}%',
+                  hint: '${app.sleepAnalysis!.restorativeMinutes}m deep+REM',
                   accent: colors.green,
                 ),
                 MetricTile(
-                  label: 'Deep %',
-                  value: '${app.sleepAnalysis!.deepPercent.toStringAsFixed(0)}%',
+                  label: 'Deep',
+                  value: '${app.sleepAnalysis!.deepPercent.toStringAsFixed(1)}%',
+                  hint: '${day.deepSleepMinutes} minutes',
                 ),
                 MetricTile(
-                  label: 'REM %',
-                  value: '${app.sleepAnalysis!.remPercent.toStringAsFixed(0)}%',
+                  label: 'REM',
+                  value: '${app.sleepAnalysis!.remPercent.toStringAsFixed(1)}%',
+                  hint: '${day.remSleepMinutes} minutes',
                 ),
                 MetricTile(
-                  label: 'Disturbances',
-                  value: '${app.sleepAnalysis!.disturbanceCount}',
+                  label: 'Light',
+                  value: '${app.sleepAnalysis!.lightPercent.toStringAsFixed(1)}%',
+                  hint: '${day.lightSleepMinutes} minutes',
+                ),
+                MetricTile(
+                  label: 'Awake',
+                  value: '${day.awakeMinutes}m',
+                  hint: '~${app.sleepAnalysis!.disturbanceCount} disturbances',
                   accent: colors.heart,
+                ),
+                MetricTile(
+                  label: 'Performance',
+                  value: app.sleepAnalysis!.performance.toStringAsFixed(0),
+                  hint: '/100',
+                  accent: colors.sleep,
                 ),
                 MetricTile(
                   label: 'Debt',
                   value: formatMinutes(app.sleepAnalysis!.debtMinutes.abs()),
-                  hint: app.sleepAnalysis!.debtMinutes >= 0 ? 'behind' : 'ahead',
+                  hint: app.sleepAnalysis!.debtMinutes >= 0
+                      ? 'behind need ${formatMinutes(app.sleepAnalysis!.neededMinutes)}'
+                      : 'ahead of need',
                 ),
               ],
             ),

@@ -14,10 +14,10 @@ class MoreScreen extends StatelessWidget {
     context.watch<AppController>();
 
     final items = [
-      _MoreItem('Workouts', 'Logged sessions + full Premium activity catalog', Icons.fitness_center, '/workouts', colors.strain),
-      _MoreItem('Weekly Report', 'Performance like Premium wellness reports', Icons.insights, '/weekly', colors.green),
+      _MoreItem('Workouts', 'Logged sessions + full activity catalog', Icons.fitness_center, '/workouts', colors.strain),
+      _MoreItem('Weekly Report', 'Weekly performance and recovery report', Icons.insights, '/weekly', colors.green),
       _MoreItem('Stress & Readiness', 'Stress load + daily readiness', Icons.spa_outlined, '/stress', colors.sleep),
-      _MoreItem('Journal', 'Whoop-style behaviors & habits', Icons.menu_book_outlined, '/journal', colors.strain),
+      _MoreItem('Journal', 'OpenAir behaviors & habits', Icons.menu_book_outlined, '/journal', colors.strain),
       _MoreItem('Insights', 'Live coaching cues from your metrics', Icons.lightbulb_outline, '/insights', colors.green),
       _MoreItem('Programs', 'Guided plans (sleep, strain, stress)', Icons.flag_outlined, '/programs', colors.spo2),
       _MoreItem('Coach', 'Ask Gemini about your data', Icons.auto_awesome, '/coach', colors.green),
@@ -29,7 +29,7 @@ class MoreScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
           Text(
-            'Premium-style features inspired by Whoop + Google Health Premium. Scores are OpenAir heuristics on your Fitbit cloud data.',
+            'Recovery coaching features on your Fitbit cloud data. Scores are OpenAir heuristics.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),

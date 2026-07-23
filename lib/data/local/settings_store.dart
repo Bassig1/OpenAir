@@ -13,6 +13,9 @@ class SettingsStore {
   static const _connectedKey = 'google_connected';
   static const _liveSyncKey = 'live_sync_enabled';
   static const _themeModeKey = 'theme_mode';
+  static const _lastSleepNotifyKey = 'last_sleep_notify_ymd';
+  static const _lastHrNotifyKey = 'last_hr_notify_ymd';
+  static const _alertsEnabledKey = 'alerts_enabled';
 
   final FlutterSecureStorage _secure;
 
@@ -86,5 +89,35 @@ class SettingsStore {
       ThemeMode.system => 'system',
     };
     await prefs.setString(_themeModeKey, value);
+  }
+
+  Future<bool> getAlertsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_alertsEnabledKey) ?? true;
+  }
+
+  Future<void> setAlertsEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_alertsEnabledKey, value);
+  }
+
+  Future<String?> getLastSleepNotifyYmd() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastSleepNotifyKey);
+  }
+
+  Future<void> setLastSleepNotifyYmd(String ymd) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastSleepNotifyKey, ymd);
+  }
+
+  Future<String?> getLastHrNotifyYmd() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastHrNotifyKey);
+  }
+
+  Future<void> setLastHrNotifyYmd(String ymd) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastHrNotifyKey, ymd);
   }
 }

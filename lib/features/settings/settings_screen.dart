@@ -138,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
-              'Preview the Whoop-style UI without OAuth',
+              'Preview the OpenAir UI without OAuth',
               style: TextStyle(color: colors.textSecondary),
             ),
             value: app.useDemoData,
@@ -152,12 +152,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
-              'Poll Google Health every 1 minute and refresh on app resume when connected.',
+              'Poll cloud data every 1 minute and refresh on app resume when connected.',
               style: TextStyle(color: colors.textSecondary),
             ),
             value: app.liveSyncEnabled,
             activeThumbColor: colors.green,
             onChanged: (v) => app.setLiveSyncEnabled(v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Push alerts',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+            subtitle: Text(
+              'Unusual heart rate, workout complete progress, and overnight sleep summary.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            value: app.alertsEnabled,
+            activeThumbColor: colors.green,
+            onChanged: (v) => app.setAlertsEnabled(v),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -354,8 +368,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'OpenAir is a personal Fitbit companion with a Whoop-inspired recovery UI. '
-            'Scores are OpenAir heuristics. Not affiliated with Whoop or Fitbit/Google.',
+            'OpenAir is a personal Fitbit companion with a recovery-focused recovery UI. '
+            'Scores are OpenAir heuristics. Not affiliated with Fitbit or Google.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                   height: 1.4,

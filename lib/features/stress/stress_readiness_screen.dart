@@ -79,7 +79,7 @@ class StressScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Readiness blends recovery, sleep, overnight strain, and stress — similar in spirit to Fitbit Daily Readiness / Whoop recovery coaching. Not a medical diagnosis.',
+            'Readiness blends recovery, sleep, overnight strain, and stress — based on recovery, sleep, and overnight load. Not a medical diagnosis.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.textSecondary,
                 ),

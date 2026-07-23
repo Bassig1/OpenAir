@@ -1,6 +1,7 @@
 import '../models/day_summary.dart';
+import '../models/health_extras.dart';
 
-/// Whoop-style advanced analysis derived from Fitbit/Google Health metrics.
+/// Advanced recovery analysis derived from wearable cloud metrics.
 class AdvancedAnalysis {
   const AdvancedAnalysis();
 
@@ -38,6 +39,112 @@ class AdvancedAnalysis {
       performance: day.sleepScore ?? 0,
       neededMinutes: day.sleepNeededMinutes ?? 480,
       debtMinutes: day.sleepDebtMinutes ?? 0,
+      consistencyLabel: efficiency >= 90
+          ? 'Excellent consistency'
+          : efficiency >= 80
+              ? 'Solid overnight consistency'
+              : efficiency >= 70
+                  ? 'Fair — fragmented overnight'
+                  : 'Poor continuity — prioritize wind-down',
+      summary: _sleepSummary(
+        day: day,
+        efficiency: efficiency,
+        restorativePct: restorativePct,
+        asleep: asleep,
+      ),
+    );
+  }
+
+  String _sleepSummary({
+    required DaySummary day,
+    required double efficiency,
+    required double restorativePct,
+    required int asleep,
+  }) {
+    final hrs = day.sleepMinutes ~/ 60;
+    final mins = day.sleepMinutes % 60;
+    final debt = day.sleepDebtMinutes ?? 0;
+    final debtText = debt >= 15
+        ? ' Sleep debt ~${debt}m.'
+        : debt <= -15
+            ? ' Banked ~${(-debt)}m.'
+            : '';
+    return '${hrs}h ${mins.toString().padLeft(2, '0')}m asleep · '
+        'perf ${(day.sleepScore ?? 0).toStringAsFixed(0)} · '
+        'eff ${efficiency.toStringAsFixed(0)}% · '
+        'restorative ${restorativePct.toStringAsFixed(0)}% '
+        '(deep ${day.deepSleepMinutes}m / REM ${day.remSleepMinutes}m).'
+        '$debtText';
+  }
+
+  WorkoutAnalysis workout(ExerciseSession session, {double? dayStrain}) {
+    final duration = session.durationMinutes.clamp(1, 600);
+    final intensity = session.avgHeartRate == null
+        ? (session.perceivedExertion ?? 5) / 10.0
+        : ((session.avgHeartRate! - 60) / 100).clamp(0.2, 1.2);
+    final calorieFactor =
+        session.calories == null ? duration * 7.0 : session.calories!;
+    final strainDelta = double.parse(
+      ((duration / 60.0) * intensity * 4.5 + (calorieFactor / 220))
+          .clamp(0.3, 12.0)
+          .toStringAsFixed(1),
+    );
+    final avgPace = session.paceMinPerKm;
+    return WorkoutAnalysis(
+      strainContribution: strainDelta,
+      intensityLabel: intensity >= 0.85
+          ? 'High intensity'
+          : intensity >= 0.55
+              ? 'Moderate intensity'
+              : 'Easy / recovery',
+      calorieEstimate: session.calories ?? calorieFactor,
+      paceLabel: avgPace == null
+          ? null
+          : '${avgPace.floor()}:${((avgPace % 1) * 60).round().toString().padLeft(2, '0')}/km',
+      distanceKm: session.distanceMeters == null
+          ? null
+          : session.distanceMeters! / 1000.0,
+      recoveryTip: strainDelta >= 8
+          ? 'Large load — prioritize sleep and easy movement next.'
+          : strainDelta >= 4
+              ? 'Solid session — keep hydration and protein on track.'
+              : 'Light load — good for active recovery.',
+      dayStrainAfter: dayStrain == null
+          ? null
+          : double.parse((dayStrain + strainDelta).clamp(0, 21).toStringAsFixed(1)),
+    );
+  }
+
+  UnusualHeartEvent? detectUnusualHeart({
+    required DaySummary day,
+    required List<DaySummary> history,
+  }) {
+    final baselines = history
+        .where((d) => d.restingHeartRate != null)
+        .map((d) => d.restingHeartRate!)
+        .toList();
+    if (baselines.isEmpty && day.restingHeartRate == null) return null;
+    final baseline = baselines.isEmpty
+        ? day.restingHeartRate!
+        : baselines.reduce((a, b) => a + b) / baselines.length;
+
+    double? spike;
+    for (final s in day.heartSamples) {
+      if (s.value >= baseline + 35 && (spike == null || s.value > spike)) {
+        spike = s.value;
+      }
+    }
+    if (day.restingHeartRate != null &&
+        day.restingHeartRate! >= baseline + 12) {
+      spike = day.restingHeartRate;
+    }
+    if (spike == null) return null;
+    return UnusualHeartEvent(
+      bpm: spike,
+      baselineBpm: baseline,
+      reason: spike >= baseline + 35
+          ? 'Elevated reading vs your recent resting baseline'
+          : 'Resting HR elevated vs your recent average',
     );
   }
 
@@ -90,7 +197,7 @@ class AdvancedAnalysis {
                 ? 'Normal'
                 : avg >= 93
                     ? 'Low-normal'
-                    : 'Low — check Fitbit reading';
+                    : 'Low — verify sensor reading';
     return OxygenAnalysis(
       averagePercent: avg,
       minPercent: min,
@@ -109,7 +216,7 @@ class AdvancedAnalysis {
     if (!isLive) {
       return SyncHealth(
         status: SyncStatus.demo,
-        message: 'Demo mode — connect Google Health for live Fitbit cloud data.',
+        message: 'Demo mode — connect cloud sync for live wearable data.',
         missingDayCount: 0,
         dataLag: null,
         lastSyncedAt: lastSyncedAt,
@@ -160,9 +267,9 @@ class AdvancedAnalysis {
     final stale = lag != null && lag > const Duration(hours: 3);
     final status = missing >= 3 || stale ? SyncStatus.gap : SyncStatus.live;
     final message = status == SyncStatus.live
-        ? 'Live with Google Health — matching Fitbit cloud feed.'
+        ? 'Live sync — matching your cloud fitness feed.'
         : stale
-            ? 'Cloud data looks stale (${lag.inHours}h lag). Open Fitbit app near your device.'
+            ? 'Cloud data looks stale (${lag.inHours}h lag). Open your Fitbit app near the device.'
             : 'Missing $missing of last 7 days. Sync Fitbit app, then pull to refresh.';
 
     return SyncHealth(
@@ -197,6 +304,8 @@ class SleepAnalysis {
     required this.performance,
     required this.neededMinutes,
     required this.debtMinutes,
+    required this.consistencyLabel,
+    required this.summary,
   });
 
   final double efficiencyPercent;
@@ -209,6 +318,8 @@ class SleepAnalysis {
   final double performance;
   final int neededMinutes;
   final int debtMinutes;
+  final String consistencyLabel;
+  final String summary;
 }
 
 class HeartbeatAnalysis {
@@ -275,4 +386,36 @@ class SyncHealth {
   final Duration? dataLag;
   final DateTime? lastSyncedAt;
   final DateTime? latestDataAt;
+}
+
+class WorkoutAnalysis {
+  const WorkoutAnalysis({
+    required this.strainContribution,
+    required this.intensityLabel,
+    required this.calorieEstimate,
+    required this.paceLabel,
+    required this.distanceKm,
+    required this.recoveryTip,
+    required this.dayStrainAfter,
+  });
+
+  final double strainContribution;
+  final String intensityLabel;
+  final double calorieEstimate;
+  final String? paceLabel;
+  final double? distanceKm;
+  final String recoveryTip;
+  final double? dayStrainAfter;
+}
+
+class UnusualHeartEvent {
+  const UnusualHeartEvent({
+    required this.bpm,
+    required this.baselineBpm,
+    required this.reason,
+  });
+
+  final double bpm;
+  final double baselineBpm;
+  final String reason;
 }

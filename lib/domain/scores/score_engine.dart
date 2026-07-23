@@ -3,8 +3,8 @@ import 'package:intl/intl.dart';
 import '../models/day_summary.dart';
 import '../models/health_extras.dart';
 
-/// OpenAir scores inspired by Whoop + Google Health Premium style UX.
-/// Transparent heuristics — not proprietary Whoop/Fitbit algorithms.
+/// OpenAir recovery and strain scoring.
+/// Transparent heuristics — not proprietary third-party algorithms.
 class ScoreEngine {
   const ScoreEngine();
 
@@ -151,7 +151,7 @@ class ScoreEngine {
     GuidedProgram(
       id: 'strain-build',
       title: 'Build Aerobic Base',
-      subtitle: 'Zone 2 focused progression inspired by Premium plans',
+      subtitle: 'Zone 2 focused progression for aerobic base building',
       durationLabel: '14 days',
       category: 'Cardio',
     ),
@@ -165,7 +165,7 @@ class ScoreEngine {
     GuidedProgram(
       id: 'strength-primer',
       title: 'Strength Primer',
-      subtitle: 'Whoop-style strength strain awareness for lifting days',
+      subtitle: 'OpenAir strength strain awareness for lifting days',
       durationLabel: '10 days',
       category: 'Strength',
     ),

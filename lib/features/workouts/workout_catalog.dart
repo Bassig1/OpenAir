@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Fitbit / Google Health Premium-style activity catalog for browse + matching.
+/// Activity catalog for browse + matching.
 class WorkoutCatalog {
   static const activities = <WorkoutActivityType>[
     WorkoutActivityType('Run', Icons.directions_run, 'Cardio'),

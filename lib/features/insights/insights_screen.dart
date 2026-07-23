@@ -24,7 +24,7 @@ class InsightsScreen extends StatelessWidget {
             DayStrip(days: app.days, selected: day, onSelected: app.selectDay),
           const SizedBox(height: 16),
           Text(
-            'Live coaching cues from recovery, strain, sleep, and stress — Premium-style guidance.',
+            'Live coaching cues from recovery, strain, sleep, and stress — actionable coaching cues.',
             style: TextStyle(color: colors.textSecondary),
           ),
           const SizedBox(height: 16),

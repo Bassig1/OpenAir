@@ -12,7 +12,7 @@ class ScoreRing extends StatelessWidget {
     required this.max,
     required this.color,
     this.subtitle,
-    this.size = 118,
+    this.size,
   });
 
   final String label;
@@ -20,19 +20,20 @@ class ScoreRing extends StatelessWidget {
   final double max;
   final Color color;
   final String? subtitle;
-  final double size;
+  final double? size;
 
   @override
   Widget build(BuildContext context) {
     final colors = OpenAirColors.of(context);
     final progress = max <= 0 ? 0.0 : (value / max).clamp(0.0, 1.0);
+    final ringSize = size ?? 100.0;
     return SizedBox(
-      width: size,
+      width: ringSize,
       child: Column(
         children: [
           SizedBox(
-            width: size,
-            height: size,
+            width: ringSize,
+            height: ringSize,
             child: CustomPaint(
               painter: _RingPainter(
                 progress: progress,
@@ -40,14 +41,21 @@ class ScoreRing extends StatelessWidget {
                 trackColor: colors.border,
               ),
               child: Center(
-                child: Text(
-                  value % 1 == 0
-                      ? value.toStringAsFixed(0)
-                      : value.toStringAsFixed(1),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      value % 1 == 0
+                          ? value.toStringAsFixed(0)
+                          : value.toStringAsFixed(1),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colors.textPrimary,
+                              ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -55,8 +63,9 @@ class ScoreRing extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             label.toUpperCase(),
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.0,
                   color: color,
                   fontWeight: FontWeight.w700,
                 ),
@@ -66,6 +75,8 @@ class ScoreRing extends StatelessWidget {
             Text(
               subtitle!,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colors.textSecondary,
                   ),

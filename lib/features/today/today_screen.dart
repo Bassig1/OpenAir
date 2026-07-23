@@ -66,15 +66,21 @@ class TodayScreen extends StatelessWidget {
                         Row(
                           children: [
                             LiveBadge(live: app.isLive, syncing: app.syncing),
-                            const Spacer(),
-                            if (app.lastSyncedAt != null)
-                              Text(
-                                'Updated ${DateFormat.jm().format(app.lastSyncedAt!)}',
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                app.lastSyncedAt == null
+                                    ? ''
+                                    : 'Updated ${DateFormat.jm().format(app.lastSyncedAt!)}',
+                                textAlign: TextAlign.right,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(color: colors.textMuted),
                               ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 14),
@@ -116,35 +122,44 @@ class TodayScreen extends StatelessWidget {
                           onSelected: app.selectDay,
                         ),
                         const SizedBox(height: 28),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ScoreRing(
-                              label: 'Recovery',
-                              value: day.recoveryScore ?? 0,
-                              max: 100,
-                              color: colors.green,
-                              subtitle: _recoveryLabel(day.recoveryScore ?? 0),
-                            ),
-                            ScoreRing(
-                              label: 'Strain',
-                              value: day.strainScore ?? 0,
-                              max: 21,
-                              color: colors.strain,
-                              subtitle: '0–21 load',
-                            ),
-                            ScoreRing(
-                              label: 'Sleep',
-                              value: day.sleepScore ?? 0,
-                              max: 100,
-                              color: colors.sleep,
-                              subtitle: formatMinutes(day.sleepMinutes),
-                            ),
-                          ],
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final ring =
+                                ((constraints.maxWidth - 12) / 3).clamp(86.0, 108.0);
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                ScoreRing(
+                                  label: 'Recovery',
+                                  value: day.recoveryScore ?? 0,
+                                  max: 100,
+                                  color: colors.green,
+                                  subtitle: _recoveryLabel(day.recoveryScore ?? 0),
+                                  size: ring,
+                                ),
+                                ScoreRing(
+                                  label: 'Strain',
+                                  value: day.strainScore ?? 0,
+                                  max: 21,
+                                  color: colors.strain,
+                                  subtitle: '0–21 load',
+                                  size: ring,
+                                ),
+                                ScoreRing(
+                                  label: 'Sleep',
+                                  value: day.sleepScore ?? 0,
+                                  max: 100,
+                                  color: colors.sleep,
+                                  subtitle: formatMinutes(day.sleepMinutes),
+                                  size: ring,
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 28),
                         if (day.recoveryBreakdown != null) ...[
-                          const SectionHeader('Recovery breakdown'),
+                          const SectionHeader('Recovery contributors'),
                           const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
@@ -181,7 +196,7 @@ class TodayScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 24),
                         ],
-                        const SectionHeader('Premium live scores'),
+                        const SectionHeader('Daily scores'),
                         const SizedBox(height: 12),
                         GridView.count(
                           shrinkWrap: true,
@@ -194,21 +209,28 @@ class TodayScreen extends StatelessWidget {
                             MetricTile(
                               label: 'Readiness',
                               value: day.readinessScore?.toStringAsFixed(0) ?? '—',
+                              hint: '/100',
                               accent: colors.green,
                             ),
                             MetricTile(
                               label: 'Stress',
                               value: day.stressScore?.toStringAsFixed(0) ?? '—',
+                              hint: '/100',
                               accent: colors.heart,
                             ),
                             MetricTile(
                               label: 'Stress mgmt',
-                              value: day.stressManagementScore?.toStringAsFixed(0) ?? '—',
+                              value: day.stressManagementScore?.toStringAsFixed(0) ??
+                                  '—',
+                              hint: '/100',
                               accent: colors.sleep,
                             ),
                             MetricTile(
                               label: 'Cardio fit',
                               value: day.cardioFitnessScore?.toStringAsFixed(0) ?? '—',
+                              hint: day.vo2Max == null
+                                  ? '/100'
+                                  : 'VO₂ ${day.vo2Max!.toStringAsFixed(1)}',
                               accent: colors.strain,
                             ),
                           ],
@@ -236,7 +258,7 @@ class TodayScreen extends StatelessWidget {
                           runSpacing: 8,
                           children: [
                             ActionChip(
-                              label: const Text('Workouts'),
+                              label: const Text('Start workout'),
                               onPressed: () => context.push('/workouts'),
                             ),
                             ActionChip(
@@ -283,10 +305,25 @@ class TodayScreen extends StatelessWidget {
                                   : 'ahead',
                               accent: colors.strain,
                             ),
+                            MetricTile(
+                              label: 'Asleep',
+                              value: formatMinutes(day.sleepMinutes),
+                              hint:
+                                  'Deep ${day.deepSleepMinutes}m · REM ${day.remSleepMinutes}m',
+                              accent: colors.sleep,
+                            ),
+                            MetricTile(
+                              label: 'Efficiency',
+                              value: app.sleepAnalysis == null
+                                  ? '—'
+                                  : '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(0)}%',
+                              hint: app.sleepAnalysis?.consistencyLabel,
+                              accent: colors.green,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
-                        const SectionHeader('At a glance'),
+                        const SectionHeader('Vitals detail'),
                         const SizedBox(height: 12),
                         GridView.count(
                           shrinkWrap: true,
@@ -294,59 +331,89 @@ class TodayScreen extends StatelessWidget {
                           crossAxisCount: 2,
                           mainAxisSpacing: 12,
                           crossAxisSpacing: 12,
-                          childAspectRatio: 1.35,
+                          childAspectRatio: 1.2,
                           children: [
                             MetricTile(
                               label: 'Resting HR',
                               value: day.restingHeartRate == null
                                   ? '—'
-                                  : '${day.restingHeartRate!.round()} bpm',
+                                  : day.restingHeartRate!.toStringAsFixed(1),
+                              hint: 'bpm · avg ${day.avgHeartRate?.toStringAsFixed(0) ?? '—'}',
                               accent: colors.heart,
                             ),
                             MetricTile(
                               label: 'HRV',
                               value: day.hrvMs == null
                                   ? '—'
-                                  : '${day.hrvMs!.round()} ms',
+                                  : day.hrvMs!.toStringAsFixed(1),
+                              hint: 'ms · ${app.heartbeatAnalysis?.hrvTrend ?? '—'}',
                               accent: colors.green,
                             ),
                             MetricTile(
                               label: 'SpO₂',
                               value: day.spo2Percent == null
                                   ? '—'
-                                  : '${day.spo2Percent!.toStringAsFixed(1)}%',
+                                  : '${day.spo2Percent!.toStringAsFixed(2)}%',
+                              hint: app.oxygenAnalysis?.statusLabel,
                               accent: colors.spo2,
                             ),
                             MetricTile(
                               label: 'Steps',
-                              value: NumberFormat.decimalPattern()
-                                  .format(day.steps),
+                              value: NumberFormat.decimalPattern().format(day.steps),
+                              hint: day.distanceMeters == null
+                                  ? null
+                                  : '${(day.distanceMeters! / 1000).toStringAsFixed(2)} km',
                               accent: colors.green,
                             ),
                             MetricTile(
-                              label: 'Zone min',
-                              value: '${day.zoneMinutes}',
+                              label: 'Active kcal',
+                              value: day.activeCalories.toStringAsFixed(0),
+                              hint: day.totalCalories == null
+                                  ? '${day.activeMinutes} active min'
+                                  : 'total ${day.totalCalories!.toStringAsFixed(0)}',
+                              accent: colors.strain,
+                            ),
+                            MetricTile(
+                              label: 'Zones',
+                              value: day.zoneMinutes.toString(),
+                              hint: day.heartRateZones == null
+                                  ? 'min'
+                                  : 'F${day.heartRateZones!.fatBurnMinutes}/C${day.heartRateZones!.cardioMinutes}/P${day.heartRateZones!.peakMinutes}',
                               accent: colors.strain,
                             ),
                             MetricTile(
                               label: 'Resp. rate',
                               value: day.respiratoryRate == null
                                   ? '—'
-                                  : day.respiratoryRate!.toStringAsFixed(1),
-                              hint: 'br/min',
+                                  : day.respiratoryRate!.toStringAsFixed(2),
+                              hint: 'breaths/min',
                               accent: colors.sleep,
+                            ),
+                            MetricTile(
+                              label: 'Skin temp Δ',
+                              value: day.skinTempDeviation == null
+                                  ? '—'
+                                  : '${day.skinTempDeviation!.toStringAsFixed(2)}°',
+                              hint: 'vs baseline',
+                              accent: colors.heart,
                             ),
                           ],
                         ),
                         if (day.exercises.isNotEmpty) ...[
                           const SizedBox(height: 24),
-                          const SectionHeader('Workouts'),
+                          SectionHeader(
+                            'Workouts',
+                            trailing: TextButton(
+                              onPressed: () => context.push('/workouts'),
+                              child: const Text('Open'),
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           ...day.exercises.map((e) => WorkoutTile(session: e)),
                         ],
                         const SizedBox(height: 20),
                         Text(
-                          'OpenAir polls Google Health every minute while open (and on resume). Keep the Fitbit app syncing the device — Fitbit does not allow third-party Bluetooth. Raw vitals target Google Health accuracy.',
+                          'OpenAir refreshes cloud data every minute while open. Keep the Fitbit app syncing your device — third-party Bluetooth is not available.',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: colors.textSecondary,
                                 height: 1.4,

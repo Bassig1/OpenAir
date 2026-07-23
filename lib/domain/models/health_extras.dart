@@ -13,6 +13,9 @@ class ExerciseSession {
     this.elevationGainMeters,
     this.zoneMinutes,
     this.speedMetersPerSecond,
+    this.isManual = false,
+    this.notes,
+    this.perceivedExertion,
   });
 
   final String id;
@@ -28,8 +31,14 @@ class ExerciseSession {
   final double? elevationGainMeters;
   final int? zoneMinutes;
   final double? speedMetersPerSecond;
+  final bool isManual;
+  final String? notes;
+  final int? perceivedExertion;
 
-  int get durationMinutes => end.difference(start).inMinutes.abs();
+  int get durationMinutes {
+    final secs = end.difference(start).inSeconds.abs();
+    return (secs / 60).ceil().clamp(1, 24 * 60);
+  }
 
   double? get paceMinPerKm {
     if (distanceMeters == null || distanceMeters! <= 0 || durationMinutes <= 0) {
@@ -39,11 +48,11 @@ class ExerciseSession {
     return durationMinutes / km;
   }
 
-  Map<String, dynamic> toCoachJson() => {
+  Map<String, dynamic> toJson() => {
+        'id': id,
         'name': name,
         'start': start.toIso8601String(),
         'end': end.toIso8601String(),
-        'durationMinutes': durationMinutes,
         'calories': calories,
         'distanceMeters': distanceMeters,
         'avgHeartRate': avgHeartRate,
@@ -53,6 +62,35 @@ class ExerciseSession {
         'elevationGainMeters': elevationGainMeters,
         'zoneMinutes': zoneMinutes,
         'speedMetersPerSecond': speedMetersPerSecond,
+        'isManual': isManual,
+        'notes': notes,
+        'perceivedExertion': perceivedExertion,
+      };
+
+  factory ExerciseSession.fromJson(Map<String, dynamic> json) {
+    return ExerciseSession(
+      id: json['id'] as String? ?? 'manual-${json['start']}',
+      name: json['name'] as String? ?? 'Workout',
+      start: DateTime.parse(json['start'] as String),
+      end: DateTime.parse(json['end'] as String),
+      calories: (json['calories'] as num?)?.toDouble(),
+      distanceMeters: (json['distanceMeters'] as num?)?.toDouble(),
+      avgHeartRate: (json['avgHeartRate'] as num?)?.toDouble(),
+      maxHeartRate: (json['maxHeartRate'] as num?)?.toDouble(),
+      minHeartRate: (json['minHeartRate'] as num?)?.toDouble(),
+      steps: (json['steps'] as num?)?.toInt(),
+      elevationGainMeters: (json['elevationGainMeters'] as num?)?.toDouble(),
+      zoneMinutes: (json['zoneMinutes'] as num?)?.toInt(),
+      speedMetersPerSecond: (json['speedMetersPerSecond'] as num?)?.toDouble(),
+      isManual: json['isManual'] as bool? ?? true,
+      notes: json['notes'] as String?,
+      perceivedExertion: (json['perceivedExertion'] as num?)?.toInt(),
+    );
+  }
+
+  Map<String, dynamic> toCoachJson() => {
+        ...toJson(),
+        'durationMinutes': durationMinutes,
         'paceMinPerKm': paceMinPerKm,
       };
 }
