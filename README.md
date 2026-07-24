@@ -4,7 +4,6 @@ Flutter app I built as a Fitbit / Google Health companion. I got tired of openin
 
 OpenAir pulls your Google Health cloud data (after Fitbit syncs through the official Fitbit app), then shows recovery, strain, sleep, heart, and a short coach-style summary. Optional Gemini chat if you add an API key.
 
-Screenshots: [OpenAir-showcase](https://github.com/Bassig1/OpenAir-showcase)  
 Sandbox for other devices (Galaxy Watch, Oura, etc.): [OpenAir-lab](https://github.com/Bassig1/OpenAir-lab)
 
 ## Built with

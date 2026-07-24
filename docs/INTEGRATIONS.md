@@ -15,7 +15,6 @@ To add Galaxy Watch, Oura, Apple Watch, etc. without risking the shipping app:
 | --- | --- |
 | [`Bassig1/OpenAir`](https://github.com/Bassig1/OpenAir) `main` | Production Fitbit → Google Health companion |
 | [`Bassig1/OpenAir-lab`](https://github.com/Bassig1/OpenAir-lab) | Experiments: Samsung Health / Galaxy Watch, Oura, Apple Health |
-| [`Bassig1/OpenAir-showcase`](https://github.com/Bassig1/OpenAir-showcase) | Public screenshots + product write-up |
 
 ## Branches (inside a repo)
 
