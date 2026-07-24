@@ -257,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Text(
             app.geminiReady
-                ? 'Gemini coaching is on. Insights refresh after each sync.'
-                : 'Add a Gemini API key under Advanced (or build with --dart-define=GEMINI_API_KEY=...) to enable coaching.',
+                ? 'Gemini coaching is on for this build. Insights refresh after each sync.'
+                : 'Add a Gemini API key under Advanced to enable coaching (or put it in local_secrets.dart on your machine).',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                   height: 1.4,

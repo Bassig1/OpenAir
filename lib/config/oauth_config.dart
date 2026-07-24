@@ -1,16 +1,17 @@
 /// OAuth defaults for OpenAir.
 ///
-/// Do not commit your Web Client ID. Pass it at build time or paste it in Settings:
-/// `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=....apps.googleusercontent.com`
+/// Public GitHub stays empty. Your Web Client ID lives in [LocalSecrets] on this
+/// machine (skip-worktree), or pass `--dart-define=GOOGLE_WEB_CLIENT_ID=...`.
 ///
 /// Keep the Android package + SHA-1 registered in Google Cloud Console.
+import 'local_secrets.dart';
+
 class OAuthConfig {
   const OAuthConfig._();
 
-  /// Empty in the public repo. Personal / local builds inject via dart-define.
   static const defaultWebClientId = String.fromEnvironment(
     'GOOGLE_WEB_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: LocalSecrets.googleWebClientId,
   );
 
   static const androidPackageName = 'com.openair.openair';

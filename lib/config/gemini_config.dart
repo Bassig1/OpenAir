@@ -1,14 +1,15 @@
 /// Gemini (Google AI) access for OpenAir coaching.
 ///
-/// Do not commit API keys. Pass one at build time or paste it in Settings:
-/// `flutter run --dart-define=GEMINI_API_KEY=your_key`
+/// Public GitHub stays empty. Your keys live in [LocalSecrets] on this machine
+/// (skip-worktree), or pass `--dart-define=GEMINI_API_KEY=...`.
+import 'local_secrets.dart';
+
 class GeminiConfig {
   const GeminiConfig._();
 
-  /// Empty by default for the public repo. Personal builds can inject a key.
   static const defaultApiKey = String.fromEnvironment(
     'GEMINI_API_KEY',
-    defaultValue: '',
+    defaultValue: LocalSecrets.geminiApiKey,
   );
 
   /// Prefer alias models that route to available capacity; fall back on 429/404.

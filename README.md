@@ -50,6 +50,8 @@ Or paste both in Settings → Advanced. Connect with the Google account linked t
 
 You’ll need your own Google Cloud OAuth client (Web client ID + Android package/SHA-1). See `docs/MULTI_USER_CLOUD_SETUP.md` and `tool/SETUP_OAUTH.md`.
 
+For day-to-day builds on your own PC, put keys in `lib/config/local_secrets.dart` and run `git update-index --skip-worktree lib/config/local_secrets.dart` so they never get pushed. The GitHub copy of that file stays empty.
+
 ## Notes
 
 I went through a lot of revisions on sync accuracy (sleep stages, calories, HR rollups), cold start, and making strain/insights actually useful. `main` is the Fitbit → Google Health path. Experiments for other wearables live on OpenAir-lab so this repo stays the stable build.
