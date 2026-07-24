@@ -1,4 +1,4 @@
-/// Built-in OAuth defaults for this private OpenAir build.
+/// Built-in OAuth defaults for OpenAir.
 /// Web client ID is public-facing (embedded in the app); keep the Android
 /// client + SHA-1 registered in Google Cloud Console.
 class OAuthConfig {

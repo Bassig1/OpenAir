@@ -109,9 +109,8 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isConnected => googleConnected;
 
-  /// Personal build: project Gemini key is always available.
-  /// Optional Settings override for a private AI Studio key later.
-  /// Public launch can gate this behind paid keys without changing call sites.
+  /// Personal build: use Settings key or `--dart-define=GEMINI_API_KEY=...`.
+  /// Public repo ships with no baked-in key.
   String get effectiveGeminiKey {
     final override = geminiApiKey?.trim() ?? '';
     if (override.isNotEmpty) return override;

@@ -257,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Text(
             app.geminiReady
-                ? 'On automatically after Google Health connect. Deeper Whoop-style analysis refreshes after each sync — no API key setup needed for this personal build.'
-                : 'Gemini is unavailable in this build.',
+                ? 'Gemini coaching is on. Insights refresh after each sync.'
+                : 'Add a Gemini API key under Advanced (or build with --dart-define=GEMINI_API_KEY=...) to enable coaching.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                   height: 1.4,
@@ -428,12 +428,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Personal Gemini key saved'),
+                              content: Text('Gemini key saved'),
                             ),
                           );
                         }
                       },
-                      child: const Text('Save personal key'),
+                      child: const Text('Save key'),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
@@ -441,7 +441,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _geminiController.clear();
                         await app.saveGeminiKey(null);
                       },
-                      child: const Text('Use project key'),
+                      child: const Text('Clear'),
                     ),
                   ],
                 ),

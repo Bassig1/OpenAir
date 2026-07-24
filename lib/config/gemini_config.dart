@@ -1,13 +1,15 @@
-/// Project-level Gemini (Google AI) free-tier access for signed-in OpenAir users.
+/// Gemini (Google AI) access for OpenAir coaching.
 ///
-/// Google does not issue a personal AI Studio key per OAuth user. Instead OpenAir
-/// uses this project key after Google Health sign-in so coaching is seamless.
-/// Quota is shared across installs of this build — keep the app private.
+/// Do not commit API keys. Pass one at build time or paste it in Settings:
+/// `flutter run --dart-define=GEMINI_API_KEY=your_key`
 class GeminiConfig {
   const GeminiConfig._();
 
-  /// Generative Language API key for project YOUR_GCP_PROJECT.
-  static const defaultApiKey = 'REDACTED_GEMINI_KEY';
+  /// Empty by default for the public repo. Personal builds can inject a key.
+  static const defaultApiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: '',
+  );
 
   /// Prefer alias models that route to available capacity; fall back on 429/404.
   static const modelName = 'gemini-flash-latest';

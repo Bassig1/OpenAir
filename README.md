@@ -1,65 +1,56 @@
 # OpenAir
 
-**A clearer morning read for smart health devices.**
+Flutter app I built as a Fitbit / Google Health companion. I got tired of opening three apps every morning just to figure out how recovered I was, how hard I could train, and whether my sleep was actually decent.
 
-OpenAir turns the dense feed from Fitbit → Google Health into a recovery-first companion: one Today view, exact sleep and heart percentages, strain capacity, and Gemini coaching that cites *your* numbers.
+OpenAir pulls your Google Health cloud data (after Fitbit syncs through the official Fitbit app), then shows recovery, strain, sleep, heart, and a short coach-style summary. Optional Gemini chat if you add an API key.
 
-> Wearables sync through their official apps. OpenAir reads the **Google Health** cloud copy — then scores, explains, and coaches on top.
+Screenshots: [OpenAir-showcase](https://github.com/Bassig1/OpenAir-showcase)  
+Sandbox for other devices (Galaxy Watch, Oura, etc.): [OpenAir-lab](https://github.com/Bassig1/OpenAir-lab)
 
-**Public overview (screenshots):** https://github.com/Bassig1/OpenAir-showcase  
-**Experiment fork (Galaxy / Oura / multi-source):** https://github.com/Bassig1/OpenAir-lab
+## Built with
 
----
-
-## Product (what shipped)
-
-| Surface | What you get |
+| Piece | Tech |
 | --- | --- |
-| **Today** | Recovery / strain / sleep rings, plain-English brief, Ask Gemini chips |
-| **Sleep** | Stages with **exact %**, efficiency, restorative, overnight SpO₂ / RHR |
-| **Strain** | 0–21 load, capacity left, drivers (AZM, calories, steps, workouts) |
-| **Heart** | Resting / avg / min–max HR, HRV vs baseline, VO₂, zones |
-| **Insights** | On-device breakdown cards + Gemini daily narrative |
-| **Coach** | Ask for summaries against the last ~14 days of metrics |
-| **Body** | Import height/weight from Google Health in **cm / kg** |
+| App | **Dart** + **Flutter** |
+| Auth | Google Sign-In (OAuth) |
+| Health data | Google Health API (v4) |
+| State / UI | Provider, go_router, Material |
+| Charts | fl_chart |
+| Local storage | shared_preferences, flutter_secure_storage |
+| Coaching (optional) | Gemini API (`google_generative_ai`) |
+| Sync / debug tools | Python scripts under `tool/` |
+| Android / iOS shells | Kotlin, Swift (Flutter templates) |
 
-Scores are OpenAir heuristics for personal insight — not medical advice, not affiliated with Fitbit or Google.
+Primary language on GitHub: **Dart**.
 
----
+## What’s in the app
 
-## Design principles (after many revisions)
+- **Today** — recovery / strain / sleep rings + plain-English brief
+- **Sleep** — stages with exact %, efficiency, overnight SpO₂ / RHR
+- **Strain** — 0–21 load, what’s driving it, capacity left
+- **Heart** — resting / avg / min–max, HRV, zones, VO₂ when available
+- **Insights + Coach** — on-device cards; Gemini if you set a key
+- **Body profile** — import height/weight from Google Health (cm/kg)
 
-1. **Lead with Today** — one headline, three rings, then “what this means.” Detail lives on Sleep / Strain / Heart.
-2. **Parity with Google Health** — same cloud numbers (sleep stages deduped, kcalSum, AZM zone sums, HR avg/min/max).
-3. **Honest sync** — if Fitbit hasn’t uploaded, we don’t invent data; UI says when the feed is thin.
-4. **Fast cold start** — show last cached day immediately; refresh Google Health in the background.
-5. **Gemini built-in** — after Google Health sign-in, deeper analysis and Ask chips work without API-key tinkering (personal build).
+Scores are my own heuristics for personal use. Not medical advice. Not affiliated with Fitbit or Google.
 
----
-
-## Stack
-
-Flutter · Google Sign-In · Google Health API v4 · on-device scoring / insights · Gemini coaching · local notifications (Sleep / Heart / Workouts / Recovery)
-
----
-
-## Run (private source)
+## Run it
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-Connect with the Google account linked to Fitbit. Pull to refresh after the Fitbit app syncs.
+Optional Gemini:
 
----
+```bash
+flutter run --dart-define=GEMINI_API_KEY=your_key_here
+```
 
-## Repo layout
+Or paste a key in Settings. Connect with the Google account linked to Fitbit, then pull to refresh after the Fitbit app syncs.
 
-| Repo / branch | Role |
-| --- | --- |
-| **`Bassig1/OpenAir` `main`** | Production Fitbit / Google Health companion |
-| **`Bassig1/OpenAir-lab`** | Fork for Galaxy Watch, Oura, Apple Health experiments |
-| **`Bassig1/OpenAir-showcase`** | Public screenshots + write-up |
+You’ll need your own Google Cloud OAuth client (Web client ID + Android package/SHA-1). See `docs/MULTI_USER_CLOUD_SETUP.md` and `tool/SETUP_OAUTH.md`.
 
-See `docs/INTEGRATIONS.md` for the multi-source provider contract.
+## Notes
+
+I went through a lot of revisions on sync accuracy (sleep stages, calories, HR rollups), cold start, and making strain/insights actually useful. `main` is the Fitbit → Google Health path. Experiments for other wearables live on OpenAir-lab so this repo stays the stable build.
