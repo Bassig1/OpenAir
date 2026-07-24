@@ -21,7 +21,6 @@ class MoreScreen extends StatelessWidget {
       _MoreItem('Stress & Readiness', 'Stress load + daily readiness', Icons.spa_outlined, '/stress', colors.sleep),
       _MoreItem('Journal', 'OpenAir behaviors & habits', Icons.menu_book_outlined, '/journal', colors.strain),
       _MoreItem('Insights', 'Live coaching cues from your metrics', Icons.lightbulb_outline, '/insights', colors.green),
-      _MoreItem('Programs', 'Guided plans (sleep, strain, stress)', Icons.flag_outlined, '/programs', colors.spo2),
       _MoreItem('Coach', 'Ask Gemini about your data', Icons.auto_awesome, '/coach', colors.green),
     ];
 

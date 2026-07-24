@@ -111,11 +111,20 @@ class HeartRateZones {
   int get total =>
       outOfRangeMinutes + fatBurnMinutes + cardioMinutes + peakMinutes;
 
+  double percentOf(int minutes) {
+    if (total <= 0) return 0;
+    return double.parse(((minutes / total) * 100).toStringAsFixed(1));
+  }
+
   Map<String, dynamic> toJson() => {
         'outOfRangeMinutes': outOfRangeMinutes,
         'fatBurnMinutes': fatBurnMinutes,
         'cardioMinutes': cardioMinutes,
         'peakMinutes': peakMinutes,
+        'outOfRangePercent': percentOf(outOfRangeMinutes),
+        'fatBurnPercent': percentOf(fatBurnMinutes),
+        'cardioPercent': percentOf(cardioMinutes),
+        'peakPercent': percentOf(peakMinutes),
       };
 
   factory HeartRateZones.fromJson(Map<String, dynamic> json) {

@@ -25,13 +25,18 @@ class HealthInsightsEngine {
     cards.add(
       HealthInsightCard(
         category: 'Sleep',
-        title: 'Sleep performance ${sleep.performance.toStringAsFixed(0)}%',
+        title: 'Sleep performance ${sleep.performance.toStringAsFixed(1)}%',
         body:
             'You slept ${_hm(day.sleepMinutes)} vs a ${_hm(sleep.neededMinutes)} need '
-            '(${sleep.hoursVsNeedPercent.toStringAsFixed(0)}% of target). '
-            'Efficiency ${sleep.efficiencyPercent.toStringAsFixed(0)}% with '
-            'deep ${day.deepSleepMinutes}m / REM ${day.remSleepMinutes}m / light ${day.lightSleepMinutes}m. '
-            '${sleep.consistencyLabel}.',
+            '(${sleep.hoursVsNeedPercent.toStringAsFixed(1)}% of target). '
+            'Efficiency ${sleep.efficiencyPercent.toStringAsFixed(1)}% · '
+            'restorative ${sleep.restorativePercent.toStringAsFixed(1)}%. '
+            'Stages of asleep time: deep ${sleep.deepPercent.toStringAsFixed(1)}% '
+            '(${day.deepSleepMinutes}m) · REM ${sleep.remPercent.toStringAsFixed(1)}% '
+            '(${day.remSleepMinutes}m) · light ${sleep.lightPercent.toStringAsFixed(1)}% '
+            '(${day.lightSleepMinutes}m). '
+            'Awake ${sleep.awakePercent.toStringAsFixed(1)}% of time in bed '
+            '(${day.awakeMinutes}m). ${sleep.consistencyLabel}.',
         score: sleep.performance,
         accent: 'sleep',
       ),
@@ -40,18 +45,23 @@ class HealthInsightsEngine {
     if (day.hrvMs != null || day.restingHeartRate != null) {
       final hrvLine = day.hrvMs == null
           ? 'HRV not in today’s cloud summary.'
-          : 'HRV ${day.hrvMs!.round()} ms (${heart.hrvTrend})'
-              '${hrv.baseline == null ? '' : ' · baseline ${hrv.baseline!.round()} ms'}'
-              '${hrv.weekDelta == null ? '' : ' · ${hrv.weekDelta! >= 0 ? '+' : ''}${hrv.weekDelta!.round()} vs 7d'}.';
+          : 'HRV ${day.hrvMs!.toStringAsFixed(1)} ms (${heart.hrvTrend})'
+              '${hrv.baseline == null ? '' : ' · baseline ${hrv.baseline!.toStringAsFixed(1)} ms'}'
+              '${hrv.weekDelta == null ? '' : ' · ${hrv.weekDelta! >= 0 ? '+' : ''}${hrv.weekDelta!.toStringAsFixed(1)} vs 7d'}.';
       final rhrLine = day.restingHeartRate == null
           ? ''
-          : ' Resting HR ${day.restingHeartRate!.round()} bpm (${heart.rhrTrend}).';
+          : ' Resting HR ${day.restingHeartRate!.toStringAsFixed(1)} bpm (${heart.rhrTrend}).';
+      final zones = day.heartRateZones;
+      final zoneLine = zones == null || zones.total <= 0
+          ? ''
+          : ' Zone share: fat burn ${zones.percentOf(zones.fatBurnMinutes)}% · '
+              'cardio ${zones.percentOf(zones.cardioMinutes)}% · '
+              'peak ${zones.percentOf(zones.peakMinutes)}%.';
       cards.add(
         HealthInsightCard(
           category: 'Heart',
           title: 'Autonomic snapshot',
-          body: '$hrvLine$rhrLine '
-              'Zones F${heart.fatBurnMinutes}/C${heart.cardioMinutes}/P${heart.peakMinutes} min.',
+          body: '$hrvLine$rhrLine$zoneLine',
           score: day.hrvMs == null
               ? (100 - ((day.restingHeartRate ?? 60) - 50).abs() * 2)
                     .clamp(20, 90)
@@ -88,14 +98,19 @@ class HealthInsightsEngine {
     cards.add(
       HealthInsightCard(
         category: 'Activity',
-        title: '${day.steps} steps · ${day.activeMinutes} active min',
+        title: day.strainScore == null
+            ? '${day.steps} steps'
+            : 'Strain ${day.strainScore!.toStringAsFixed(1)} · ${day.steps} steps',
         body:
-            '${day.activeCalories.toStringAsFixed(0)} active kcal'
+            '${day.activeCalories <= 0 ? 'Active calories pending sync' : '${day.activeCalories.toStringAsFixed(0)} active kcal'}'
             '${day.totalCalories == null ? '' : ' · ${day.totalCalories!.toStringAsFixed(0)} total'}'
-            '${day.distanceMeters == null ? '' : ' · ${(day.distanceMeters! / 1000).toStringAsFixed(2)} km'}. '
+            '${day.distanceMeters == null ? '' : ' · ${(day.distanceMeters! / 1000).toStringAsFixed(2)} km'}'
+            ' · ${day.activeMinutes} active min · ${day.zoneMinutes} AZM. '
             '${day.exercises.isEmpty ? 'No workouts logged for this day.' : '${day.exercises.length} workout(s): ${day.exercises.map((e) => e.name).join(', ')}.'} '
             '${(day.sedentaryMinutes ?? 0) > 600 ? 'Sedentary time is elevated — insert movement breaks.' : 'Movement load looks reasonable for the day.'}',
-        score: activityScore,
+        score: day.strainScore == null
+            ? activityScore
+            : (day.strainScore! / 21 * 100).clamp(5, 99),
         accent: 'strain',
       ),
     );
@@ -107,10 +122,12 @@ class HealthInsightsEngine {
           category: 'Vitals',
           title: ox.statusLabel,
           body:
-              '${day.spo2Percent == null ? '' : 'SpO₂ ${day.spo2Percent!.toStringAsFixed(1)}%. '}'
+              '${day.spo2Percent == null ? '' : 'SpO₂ avg ${day.spo2Percent!.toStringAsFixed(1)}%'}'
+              '${ox.minPercent == null || ox.maxPercent == null ? '' : ' (range ${ox.minPercent!.toStringAsFixed(1)}–${ox.maxPercent!.toStringAsFixed(1)}%, ${ox.sampleCount} samples)'}'
+              '${day.spo2Percent == null ? '' : '. '}'
               '${day.respiratoryRate == null ? '' : 'Resp. rate ${day.respiratoryRate!.toStringAsFixed(1)} br/min. '}'
               '${day.skinTempDeviation == null ? '' : 'Skin temp Δ ${day.skinTempDeviation!.toStringAsFixed(2)}°. '}'
-              '${day.vo2Max == null && day.cardioFitnessScore == null ? '' : 'Cardio fitness ${(day.cardioFitnessScore ?? day.vo2Max)!.toStringAsFixed(0)}. '}',
+              '${day.vo2Max == null && day.cardioFitnessScore == null ? '' : 'Cardio fitness ${(day.cardioFitnessScore ?? day.vo2Max)!.toStringAsFixed(1)}. '}',
           score: day.spo2Percent == null
               ? 70
               : ((day.spo2Percent! - 90) * 10).clamp(20, 99).toDouble(),

@@ -145,37 +145,6 @@ class ScoreEngine {
     );
   }
 
-  static const guidedPrograms = <GuidedProgram>[
-    GuidedProgram(
-      id: 'sleep-reset',
-      title: 'Sleep Reset',
-      subtitle: 'Improve deep & REM consistency over 7 days',
-      durationLabel: '7 days',
-      category: 'Sleep',
-    ),
-    GuidedProgram(
-      id: 'strain-build',
-      title: 'Build Aerobic Base',
-      subtitle: 'Zone 2 focused progression for aerobic base building',
-      durationLabel: '14 days',
-      category: 'Cardio',
-    ),
-    GuidedProgram(
-      id: 'stress-down',
-      title: 'Stress Downshift',
-      subtitle: 'Breathing + recovery habits when stress is elevated',
-      durationLabel: '5 days',
-      category: 'Stress',
-    ),
-    GuidedProgram(
-      id: 'strength-primer',
-      title: 'Strength Primer',
-      subtitle: 'OpenAir strength strain awareness for lifting days',
-      durationLabel: '10 days',
-      category: 'Strength',
-    ),
-  ];
-
   double _sleepScore(DaySummary day, int baselineNeed) {
     final needMinutes = baselineNeed.toDouble();
     final durationRatio = (day.sleepMinutes / needMinutes).clamp(0.0, 1.15);
@@ -193,22 +162,37 @@ class ScoreEngine {
   }
 
   double _strainScore(DaySummary day, UserProfile profile) {
-    final fromMinutes = (day.activeMinutes / 90) * 8;
-    final fromZones = (day.zoneMinutes / 60) * 6;
-    final fromCalories = (day.activeCalories / 700) * 4;
-    final fromWorkouts = (day.exercises.length * 1.5).clamp(0.0, 4.0);
+    // Weight Fitbit Active Zone Minutes + calories hardest — light steps alone
+    // shouldn't look like a maxed-out day.
+    final fromZones = (day.zoneMinutes / 45) * 8;
+    final fromCalories = (day.activeCalories / 600) * 5;
+    final fromSteps = (day.steps / 12000) * 3;
+    final fromMinutes = (day.activeMinutes / 120) * 3;
+    final fromWorkouts = (day.exercises.length * 1.8).clamp(0.0, 5.0);
     final maxHrCap = profile.estimatedMaxHeartRate ?? 190;
     final fromHr = day.maxHeartRate == null
         ? 0.0
-        : (((day.maxHeartRate! - 100) / (maxHrCap - 100).clamp(40, 120)) * 4)
-            .clamp(0.0, 4.0);
+        : (((day.maxHeartRate! - 110) / (maxHrCap - 110).clamp(40, 120)) * 3)
+            .clamp(0.0, 3.0);
     final zones = day.heartRateZones;
-    final fromPeak = zones == null ? 0.0 : (zones.peakMinutes / 20) * 2;
-    return double.parse(
-      (fromMinutes + fromZones + fromCalories + fromWorkouts + fromHr + fromPeak)
-          .clamp(0.0, 21.0)
-          .toStringAsFixed(1),
-    );
+    final fromPeak = zones == null
+        ? 0.0
+        : ((zones.cardioMinutes + zones.peakMinutes * 1.5) / 25) * 2;
+    final raw = fromZones +
+        fromCalories +
+        fromSteps +
+        fromMinutes +
+        fromWorkouts +
+        fromHr +
+        fromPeak;
+    // If Google Health returned no activity at all, stay at 0 (don't invent strain).
+    final hasSignal = day.steps > 0 ||
+        day.activeCalories > 0 ||
+        day.zoneMinutes > 0 ||
+        day.activeMinutes > 0 ||
+        day.exercises.isNotEmpty;
+    if (!hasSignal) return 0;
+    return double.parse(raw.clamp(0.0, 21.0).toStringAsFixed(1));
   }
 
   int _sleepNeededMinutes(

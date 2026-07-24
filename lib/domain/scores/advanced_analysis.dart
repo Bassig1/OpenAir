@@ -56,6 +56,11 @@ class AdvancedAnalysis {
           : double.parse(
               ((day.lightSleepMinutes / asleep) * 100).toStringAsFixed(1),
             ),
+      awakePercent: totalInBed <= 0
+          ? 0
+          : double.parse(
+              ((day.awakeMinutes / totalInBed) * 100).toStringAsFixed(1),
+            ),
       disturbanceCount: (day.awakeMinutes / 8).round().clamp(0, 30),
       performance: performance,
       hoursVsNeedPercent: double.parse(hoursVsNeed.toStringAsFixed(1)),
@@ -214,7 +219,7 @@ class AdvancedAnalysis {
       restingHr: day.restingHeartRate,
       avgHr: day.avgHeartRate,
       maxHr: maxHr ?? day.maxHeartRate,
-      minHr: minHr,
+      minHr: minHr ?? day.minHeartRate,
       hrvMs: day.hrvMs,
       hrvTrend: hrvTrend,
       rhrTrend: rhrTrend,
@@ -250,6 +255,84 @@ class AdvancedAnalysis {
       sampleCount: samples.length,
       statusLabel: status,
       respiratoryRate: day.respiratoryRate,
+    );
+  }
+
+  /// Day strain breakdown — what drove the 0–21 score and what capacity remains.
+  StrainDayAnalysis strain(DaySummary day, {UserProfile profile = UserProfile.empty}) {
+    final score = day.strainScore ?? 0;
+    final remaining = (21 - score).clamp(0.0, 21.0);
+    final zone = score >= 14
+        ? 'High'
+        : score >= 8
+            ? 'Moderate'
+            : score >= 3
+                ? 'Low'
+                : 'Rest';
+    final fromZones = (day.zoneMinutes / 45) * 8;
+    final fromCalories = (day.activeCalories / 600) * 5;
+    final fromSteps = (day.steps / 12000) * 3;
+    final fromMinutes = (day.activeMinutes / 120) * 3;
+    final fromWorkouts = (day.exercises.length * 1.8).clamp(0.0, 5.0);
+    final parts = <({String label, double value, String detail})>[
+      (
+        label: 'Active zone min',
+        value: fromZones.clamp(0, 21),
+        detail: '${day.zoneMinutes} AZM',
+      ),
+      (
+        label: 'Active calories',
+        value: fromCalories.clamp(0, 21),
+        detail: '${day.activeCalories.round()} kcal',
+      ),
+      (
+        label: 'Steps',
+        value: fromSteps.clamp(0, 21),
+        detail: '${day.steps} steps',
+      ),
+      (
+        label: 'Active minutes',
+        value: fromMinutes.clamp(0, 21),
+        detail: '${day.activeMinutes} min',
+      ),
+      (
+        label: 'Workouts',
+        value: fromWorkouts,
+        detail: day.exercises.isEmpty
+            ? 'None logged'
+            : '${day.exercises.length} session(s)',
+      ),
+    ]..sort((a, b) => b.value.compareTo(a.value));
+
+    final hasSignal = day.steps > 0 ||
+        day.activeCalories > 0 ||
+        day.zoneMinutes > 0 ||
+        day.activeMinutes > 0 ||
+        day.exercises.isNotEmpty;
+
+    final summary = !hasSignal
+        ? 'No activity synced from Google Health for this day yet. '
+            'Open the Fitbit app, wait for sync, then pull to refresh.'
+        : 'Strain ${score.toStringAsFixed(1)} / 21 ($zone). '
+            'Top drivers: ${parts.take(2).map((p) => '${p.label} (${p.detail})').join(', ')}. '
+            '${remaining.toStringAsFixed(1)} strain capacity left'
+            '${score < 8 ? ' — room for a focused session.' : score < 14 ? ' — train with intent.' : ' — prioritize recovery.'}';
+
+    return StrainDayAnalysis(
+      score: score,
+      remaining: double.parse(remaining.toStringAsFixed(1)),
+      zoneLabel: zone,
+      summary: summary,
+      hasActivity: hasSignal,
+      contributions: parts
+          .map(
+            (p) => StrainContribution(
+              label: p.label,
+              points: double.parse(p.value.toStringAsFixed(1)),
+              detail: p.detail,
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -526,6 +609,7 @@ class SleepAnalysis {
     required this.deepPercent,
     required this.remPercent,
     required this.lightPercent,
+    required this.awakePercent,
     required this.disturbanceCount,
     required this.performance,
     required this.hoursVsNeedPercent,
@@ -542,6 +626,8 @@ class SleepAnalysis {
   final double deepPercent;
   final double remPercent;
   final double lightPercent;
+  /// Awake as % of time in bed (asleep + awake).
+  final double awakePercent;
   final int disturbanceCount;
   final double performance;
   final double hoursVsNeedPercent;
@@ -596,6 +682,36 @@ class OxygenAnalysis {
   final int sampleCount;
   final String statusLabel;
   final double? respiratoryRate;
+}
+
+class StrainDayAnalysis {
+  const StrainDayAnalysis({
+    required this.score,
+    required this.remaining,
+    required this.zoneLabel,
+    required this.summary,
+    required this.hasActivity,
+    required this.contributions,
+  });
+
+  final double score;
+  final double remaining;
+  final String zoneLabel;
+  final String summary;
+  final bool hasActivity;
+  final List<StrainContribution> contributions;
+}
+
+class StrainContribution {
+  const StrainContribution({
+    required this.label,
+    required this.points,
+    required this.detail,
+  });
+
+  final String label;
+  final double points;
+  final String detail;
 }
 
 enum SyncStatus { ok, gap, disconnected }

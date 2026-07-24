@@ -44,5 +44,16 @@ void main() {
     expect(brief.coaching, contains('SpO₂'));
     expect(brief.actions, isNotEmpty);
     expect(brief.sleepPerformance, greaterThan(50));
+
+    final sleep = const AdvancedAnalysis().sleep(
+      day,
+      profile: const UserProfile(ageYears: 30, sex: BiologicalSex.male),
+      history: [day],
+    );
+    expect(sleep.deepPercent, closeTo(9.6, 0.1));
+    expect(sleep.remPercent, closeTo(25.6, 0.1));
+    expect(sleep.lightPercent, closeTo(64.8, 0.1));
+    expect(sleep.awakePercent, closeTo(9.3, 0.2));
+    expect(sleep.efficiencyPercent, greaterThan(85));
   });
 }

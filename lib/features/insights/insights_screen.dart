@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/scores/health_insights_engine.dart';
@@ -77,6 +78,25 @@ class InsightsScreen extends StatelessWidget {
                         height: 1.45,
                       ),
                     ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final q in const [
+                  'Summarize my health today with exact percentages',
+                  'Break down sleep stages and efficiency',
+                  'Summarize the last 7 days',
+                ])
+                  ActionChip(
+                    label: Text(q),
+                    onPressed: () async {
+                      await app.askCoach(q);
+                      if (context.mounted) context.push('/coach');
+                    },
+                  ),
+              ],
             ),
           ],
           const SizedBox(height: 24),
@@ -170,7 +190,7 @@ class _InsightCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                card.score.toStringAsFixed(0),
+                card.score.toStringAsFixed(1),
                 style: TextStyle(
                   color: accent,
                   fontWeight: FontWeight.w800,

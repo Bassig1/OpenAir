@@ -15,17 +15,26 @@ class _CoachScreenState extends State<CoachScreen> {
   final _controller = TextEditingController();
   bool _sending = false;
 
+  static const _prompts = [
+    'Summarize my health today with exact percentages',
+    'Break down my sleep stages and efficiency with exact %',
+    'Summarize the last 7 days of recovery, HRV, and sleep',
+    'What do my SpO₂ and resting heart rate suggest?',
+    'Should I train hard today based on recovery and strain?',
+    'Compare last night’s deep and REM to my recent average',
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _send(AppController app) async {
-    final text = _controller.text;
+  Future<void> _send(AppController app, [String? override]) async {
+    final text = override ?? _controller.text;
     if (text.trim().isEmpty || _sending) return;
     setState(() => _sending = true);
-    _controller.clear();
+    if (override == null) _controller.clear();
     await app.askCoach(text);
     if (mounted) setState(() => _sending = false);
   }
@@ -55,7 +64,7 @@ class _CoachScreenState extends State<CoachScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Text(
                 ready
-                    ? 'Gemini free-tier coaching is on automatically while you’re signed into Google Health.'
+                    ? 'Ask Gemini to summarize sleep, recovery, and vitals with exact percentages from your Google Health data.'
                     : 'Connect Google Health to unlock Gemini coaching on the project free tier.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colors.textSecondary,
@@ -63,6 +72,24 @@ class _CoachScreenState extends State<CoachScreen> {
               ),
             ),
           ),
+          if (ready)
+            SizedBox(
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                children: [
+                  for (final q in _prompts)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ActionChip(
+                        label: Text(q, style: const TextStyle(fontSize: 12)),
+                        onPressed: _sending ? null : () => _send(app, q),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           Expanded(
             child: app.chat.isEmpty
                 ? ListView(
@@ -77,7 +104,7 @@ class _CoachScreenState extends State<CoachScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Answers use your recent OpenAir metrics as context.',
+                        'Gemini uses your recent synced metrics — including sleep stage %, efficiency, HRV, SpO₂, and strain.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: colors.textSecondary,
                             ),
@@ -87,20 +114,12 @@ class _CoachScreenState extends State<CoachScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          for (final q in const [
-                            'Why is my recovery lower today?',
-                            'How was my sleep quality this week?',
-                            'Should I train hard tomorrow?',
-                            'What do my SpO₂ and HRV suggest?',
-                          ])
+                          for (final q in _prompts)
                             ActionChip(
                               label: Text(q),
-                              onPressed: !ready
+                              onPressed: !ready || _sending
                                   ? null
-                                  : () async {
-                                      _controller.text = q;
-                                      await _send(app);
-                                    },
+                                  : () => _send(app, q),
                             ),
                         ],
                       ),
@@ -108,8 +127,26 @@ class _CoachScreenState extends State<CoachScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: app.chat.length,
+                    itemCount: app.chat.length + (_sending ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (_sending && index == app.chat.length) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: colors.border),
+                            ),
+                            child: Text(
+                              'Summarizing…',
+                              style: TextStyle(color: colors.textMuted),
+                            ),
+                          ),
+                        );
+                      }
                       final msg = app.chat[index];
                       final isUser = msg.role == 'user';
                       return Align(
@@ -148,7 +185,7 @@ class _CoachScreenState extends State<CoachScreen> {
                       minLines: 1,
                       maxLines: 4,
                       decoration: const InputDecoration(
-                        hintText: 'Ask about recovery, sleep, strain…',
+                        hintText: 'Ask Gemini to summarize sleep, recovery…',
                       ),
                       onSubmitted: (_) => _send(app),
                     ),

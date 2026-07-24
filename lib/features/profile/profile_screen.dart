@@ -20,7 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _height;
   late final TextEditingController _weight;
   BiologicalSex? _sex;
-  bool _metric = false;
+  bool _metric = true;
 
   @override
   void initState() {
@@ -48,6 +48,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ? weightKg.toStringAsFixed(1)
               : Units.kgToLbValue(weightKg)!.toStringAsFixed(1),
     );
+
+    // Auto-fill empty fields from Google Health body on open.
+    if (app.googleConnected &&
+        (p.heightCm == null || p.weightKg == null) &&
+        (body.heightCm != null || body.weightKg != null)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final ok = await app.importBodyFromGoogleHealth();
+        if (!mounted || !ok) return;
+        final next = app.profile;
+        setState(() {
+          _height.text = next.heightCm == null
+              ? _height.text
+              : next.heightCm!.toStringAsFixed(0);
+          _weight.text = next.weightKg == null
+              ? _weight.text
+              : next.weightKg!.toStringAsFixed(1);
+          _metric = true;
+        });
+      });
+    }
   }
 
   @override
@@ -106,16 +126,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(
-              _metric ? 'Metric (cm / kg)' : 'Imperial (in / lb)',
+              'Use metric (cm / kg)',
               style: TextStyle(color: colors.textPrimary),
             ),
             subtitle: Text(
-              _metric ? 'Switch off for pounds & inches' : 'Default for this build',
+              _metric
+                  ? 'Default — matches Google Health body units'
+                  : 'Switch on for centimeters & kilograms',
               style: TextStyle(color: colors.textMuted),
             ),
-            value: !_metric,
+            value: _metric,
             activeThumbColor: colors.green,
-            onChanged: (imperial) => _applyUnitToggle(!imperial),
+            onChanged: _applyUnitToggle,
           ),
           TextField(
             controller: _name,
@@ -185,30 +207,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(color: colors.textSecondary, height: 1.45),
                   ),
                   const SizedBox(height: 10),
-                  OutlinedButton(
+                  FilledButton.icon(
                     onPressed: () async {
                       final ok = await app.importBodyFromGoogleHealth();
                       if (!context.mounted) return;
                       if (ok) {
                         final p = app.profile;
                         setState(() {
+                          _metric = true;
                           _height.text = p.heightCm == null
                               ? ''
-                              : _metric
-                                  ? p.heightCm!.toStringAsFixed(0)
-                                  : Units.cmToInValue(p.heightCm)!
-                                      .toStringAsFixed(1);
+                              : p.heightCm!.toStringAsFixed(0);
                           _weight.text = p.weightKg == null
                               ? ''
-                              : _metric
-                                  ? p.weightKg!.toStringAsFixed(1)
-                                  : Units.kgToLbValue(p.weightKg)!
-                                      .toStringAsFixed(1);
+                              : p.weightKg!.toStringAsFixed(1);
                         });
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
+                          SnackBar(
                             content: Text(
-                              'Imported weight & height from Google Health',
+                              'Imported ${Units.weight(p.weightKg, metric: true)} · '
+                              '${Units.height(p.heightCm, metric: true)}',
                             ),
                           ),
                         );
@@ -224,7 +242,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         );
                       }
                     },
-                    child: const Text('Import into profile'),
+                    icon: const Icon(Icons.download),
+                    label: const Text('Import height & weight (cm/kg)'),
                   ),
                 ],
               ),

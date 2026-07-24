@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_controller.dart';
@@ -41,11 +42,22 @@ class SleepScreen extends StatelessWidget {
                 ),
           ),
           Text(
-            'Sleep performance ${app.sleepAnalysis?.performance.toStringAsFixed(0) ?? day.sleepScore?.toStringAsFixed(0) ?? '—'}%  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? app.profile.sleepNeedBaselineMinutes)}',
+            'Sleep performance ${app.sleepAnalysis?.performance.toStringAsFixed(1) ?? day.sleepScore?.toStringAsFixed(1) ?? '—'}%  ·  Need ${formatMinutes(day.sleepNeededMinutes ?? app.profile.sleepNeedBaselineMinutes)}',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
           ),
+          if (app.sleepAnalysis != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Efficiency ${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(1)}% · '
+              'vs need ${app.sleepAnalysis!.hoursVsNeedPercent.toStringAsFixed(1)}% · '
+              'restorative ${app.sleepAnalysis!.restorativePercent.toStringAsFixed(1)}%',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.textMuted,
+                  ),
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             height: 180,
@@ -67,7 +79,20 @@ class SleepScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ...stages.map((stage) {
-            final pct = ((stage.$2 / total) * 100).round();
+            final sleep = app.sleepAnalysis;
+            final pct = switch (stage.$1) {
+              'Deep' => sleep?.deepPercent ??
+                  double.parse(((stage.$2 / total) * 100).toStringAsFixed(1)),
+              'REM' => sleep?.remPercent ??
+                  double.parse(((stage.$2 / total) * 100).toStringAsFixed(1)),
+              'Light' => sleep?.lightPercent ??
+                  double.parse(((stage.$2 / total) * 100).toStringAsFixed(1)),
+              _ => sleep?.awakePercent ??
+                  double.parse(((stage.$2 / total) * 100).toStringAsFixed(1)),
+            };
+            final basis = stage.$1 == 'Awake'
+                ? 'of time in bed'
+                : 'of asleep time';
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
@@ -75,12 +100,13 @@ class SleepScreen extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(color: stage.$3, shape: BoxShape.circle),
+                    decoration:
+                        BoxDecoration(color: stage.$3, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text(stage.$1)),
                   Text(
-                    '${formatMinutes(stage.$2)}  ·  $pct%',
+                    '${formatMinutes(stage.$2)}  ·  ${pct.toStringAsFixed(1)}% $basis',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: colors.textSecondary,
                         ),
@@ -174,19 +200,19 @@ class SleepScreen extends StatelessWidget {
               children: [
                 MetricTile(
                   label: 'Performance',
-                  value: '${app.sleepAnalysis!.performance.toStringAsFixed(0)}%',
+                  value: '${app.sleepAnalysis!.performance.toStringAsFixed(1)}%',
                   hint: 'hours + quality composite',
                   accent: colors.sleep,
                 ),
                 MetricTile(
                   label: 'Hours vs need',
-                  value: '${app.sleepAnalysis!.hoursVsNeedPercent.toStringAsFixed(0)}%',
+                  value: '${app.sleepAnalysis!.hoursVsNeedPercent.toStringAsFixed(1)}%',
                   hint: formatMinutes(app.sleepAnalysis!.neededMinutes),
                   accent: colors.green,
                 ),
                 MetricTile(
                   label: 'Consistency',
-                  value: '${app.sleepAnalysis!.consistencyPercent.toStringAsFixed(0)}%',
+                  value: '${app.sleepAnalysis!.consistencyPercent.toStringAsFixed(1)}%',
                   hint: app.sleepAnalysis!.consistencyLabel,
                 ),
                 MetricTile(
@@ -218,8 +244,8 @@ class SleepScreen extends StatelessWidget {
                 ),
                 MetricTile(
                   label: 'Awake',
-                  value: '${day.awakeMinutes}m',
-                  hint: '~${app.sleepAnalysis!.disturbanceCount} disturbances',
+                  value: '${app.sleepAnalysis!.awakePercent.toStringAsFixed(1)}%',
+                  hint: '${day.awakeMinutes}m · ~${app.sleepAnalysis!.disturbanceCount} disturbances',
                   accent: colors.heart,
                 ),
                 MetricTile(
@@ -230,6 +256,42 @@ class SleepScreen extends StatelessWidget {
                       : 'ahead of need',
                 ),
               ],
+            ),
+          ],
+          if (app.geminiReady) ...[
+            const SizedBox(height: 28),
+            const SectionHeader('Ask Gemini about sleep'),
+            const SizedBox(height: 8),
+            Text(
+              'Summarize overnight architecture with exact stage percentages.',
+              style: TextStyle(color: colors.textMuted, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final q in const [
+                  'Summarize my sleep last night with exact stage percentages',
+                  'How does my deep and REM compare to this week?',
+                  'What should I change to raise sleep efficiency?',
+                ])
+                  ActionChip(
+                    label: Text(q),
+                    onPressed: () async {
+                      await app.askCoach(q);
+                      if (context.mounted) context.push('/coach');
+                    },
+                  ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.push('/coach'),
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Open Coach'),
+              ),
             ),
           ],
         ],

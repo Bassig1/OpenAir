@@ -18,6 +18,7 @@ class DaySummary {
     required this.maxHeartRate,
     required this.heartSamples,
     required this.spo2Samples,
+    this.minHeartRate,
     this.zoneMinutes = 0,
     this.distanceMeters,
     this.floors,
@@ -64,6 +65,7 @@ class DaySummary {
   final int awakeMinutes;
   final double? avgHeartRate;
   final double? maxHeartRate;
+  final double? minHeartRate;
   final List<MetricSample> heartSamples;
   final List<MetricSample> spo2Samples;
   final List<ExerciseSession> exercises;
@@ -122,6 +124,7 @@ class DaySummary {
       awakeMinutes: awakeMinutes,
       avgHeartRate: avgHeartRate,
       maxHeartRate: maxHeartRate,
+      minHeartRate: minHeartRate,
       heartSamples: heartSamples,
       spo2Samples: spo2Samples,
       exercises: exercises ?? this.exercises,
@@ -141,6 +144,12 @@ class DaySummary {
   }
 
   Map<String, dynamic> toCoachJson() {
+    final asleep =
+        deepSleepMinutes + remSleepMinutes + lightSleepMinutes;
+    final inBed = asleep + awakeMinutes;
+    double pct(int part, int whole) => whole <= 0
+        ? 0
+        : double.parse(((part / whole) * 100).toStringAsFixed(1));
     return {
       'date': date.toIso8601String().split('T').first,
       'recovery': recoveryScore,
@@ -171,15 +180,17 @@ class DaySummary {
       'remSleepMinutes': remSleepMinutes,
       'lightSleepMinutes': lightSleepMinutes,
       'awakeMinutes': awakeMinutes,
+      'sleepStagePercentsOfAsleep': {
+        'deep': pct(deepSleepMinutes, asleep),
+        'rem': pct(remSleepMinutes, asleep),
+        'light': pct(lightSleepMinutes, asleep),
+      },
+      'awakePercentOfTimeInBed': pct(awakeMinutes, inBed),
+      'sleepEfficiencyPercent': pct(asleep, inBed),
       'avgHeartRate': avgHeartRate,
       'maxHeartRate': maxHeartRate,
-      'heartRateZones': heartRateZones == null
-          ? null
-          : {
-              'fatBurn': heartRateZones!.fatBurnMinutes,
-              'cardio': heartRateZones!.cardioMinutes,
-              'peak': heartRateZones!.peakMinutes,
-            },
+      'minHeartRate': minHeartRate,
+      'heartRateZones': heartRateZones?.toJson(),
       'exercises': exercises.map((e) => e.toCoachJson()).toList(),
       'insights': insights.map((i) => {'title': i.title, 'body': i.body}).toList(),
     };
@@ -210,6 +221,7 @@ class DaySummary {
       'awakeMinutes': awakeMinutes,
       'avgHeartRate': avgHeartRate,
       'maxHeartRate': maxHeartRate,
+      'minHeartRate': minHeartRate,
       'heartRateZones': heartRateZones?.toJson(),
       'exercises': exercises.map((e) => e.toJson()).toList(),
       'recoveryScore': recoveryScore,
@@ -269,6 +281,7 @@ class DaySummary {
       awakeMinutes: (json['awakeMinutes'] as num?)?.toInt() ?? 0,
       avgHeartRate: (json['avgHeartRate'] as num?)?.toDouble(),
       maxHeartRate: (json['maxHeartRate'] as num?)?.toDouble(),
+      minHeartRate: (json['minHeartRate'] as num?)?.toDouble(),
       heartSamples: samples,
       spo2Samples: const [],
       heartRateZones: zonesRaw is Map

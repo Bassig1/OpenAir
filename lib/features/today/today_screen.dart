@@ -85,6 +85,16 @@ class TodayScreen extends StatelessWidget {
                                     padding: const EdgeInsets.only(bottom: 14),
                                     child: _ConnectCard(app: app, colors: colors),
                                   ),
+                                if (app.isConnected &&
+                                    (app.profile.heightCm == null ||
+                                        app.profile.weightKg == null))
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 14),
+                                    child: _BodyImportCard(
+                                      app: app,
+                                      colors: colors,
+                                    ),
+                                  ),
                                 Text(
                                   DateFormat('EEEE, MMM d').format(day.date),
                                   style: Theme.of(context)
@@ -243,7 +253,7 @@ class TodayScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Same Fitbit → Google Health numbers, explained in plain language.',
+                                    'Same Fitbit → Google Health numbers, explained with exact percentages.',
                                     style: TextStyle(
                                       color: colors.textMuted,
                                       fontSize: 13,
@@ -277,6 +287,46 @@ class TodayScreen extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 16),
+                                  const SectionHeader('Ask Gemini'),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Ask for a summary or dive into sleep, recovery, or vitals.',
+                                    style: TextStyle(
+                                      color: colors.textMuted,
+                                      fontSize: 13,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (final q in const [
+                                        'Summarize my health today with exact percentages',
+                                        'Break down my sleep stages and efficiency',
+                                        'Summarize the last 7 days of recovery and HRV',
+                                        'What should I train today based on recovery?',
+                                      ])
+                                        ActionChip(
+                                          label: Text(q),
+                                          onPressed: () async {
+                                            await app.askCoach(q);
+                                            if (context.mounted) {
+                                              context.push('/coach');
+                                            }
+                                          },
+                                        ),
+                                    ],
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => context.push('/coach'),
+                                      child: const Text('Open Coach chat'),
+                                    ),
+                                  ),
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
@@ -284,6 +334,85 @@ class TodayScreen extends StatelessWidget {
                                           context.push('/insights'),
                                       child: const Text('Full insights'),
                                     ),
+                                  ),
+                                ],
+                                if (app.sleepAnalysis != null) ...[
+                                  const SizedBox(height: 12),
+                                  SectionHeader(
+                                    'Sleep architecture',
+                                    trailing: TextButton(
+                                      onPressed: () => context.push('/sleep'),
+                                      child: const Text('Details'),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  GridView.count(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 1.35,
+                                    children: [
+                                      MetricTile(
+                                        label: 'Performance',
+                                        value:
+                                            '${app.sleepAnalysis!.performance.toStringAsFixed(1)}%',
+                                        hint:
+                                            'vs need ${app.sleepAnalysis!.hoursVsNeedPercent.toStringAsFixed(1)}%',
+                                        accent: colors.sleep,
+                                      ),
+                                      MetricTile(
+                                        label: 'Efficiency',
+                                        value:
+                                            '${app.sleepAnalysis!.efficiencyPercent.toStringAsFixed(1)}%',
+                                        hint: 'asleep / in bed',
+                                        accent: colors.sleep,
+                                      ),
+                                      MetricTile(
+                                        label: 'Deep',
+                                        value:
+                                            '${app.sleepAnalysis!.deepPercent.toStringAsFixed(1)}%',
+                                        hint: '${day.deepSleepMinutes}m',
+                                        accent: colors.sleep,
+                                      ),
+                                      MetricTile(
+                                        label: 'REM',
+                                        value:
+                                            '${app.sleepAnalysis!.remPercent.toStringAsFixed(1)}%',
+                                        hint: '${day.remSleepMinutes}m',
+                                        accent: colors.sleep,
+                                      ),
+                                      MetricTile(
+                                        label: 'Light',
+                                        value:
+                                            '${app.sleepAnalysis!.lightPercent.toStringAsFixed(1)}%',
+                                        hint: '${day.lightSleepMinutes}m',
+                                      ),
+                                      MetricTile(
+                                        label: 'Awake',
+                                        value:
+                                            '${app.sleepAnalysis!.awakePercent.toStringAsFixed(1)}%',
+                                        hint: '${day.awakeMinutes}m of in-bed',
+                                        accent: colors.heart,
+                                      ),
+                                      MetricTile(
+                                        label: 'Restorative',
+                                        value:
+                                            '${app.sleepAnalysis!.restorativePercent.toStringAsFixed(1)}%',
+                                        hint:
+                                            '${app.sleepAnalysis!.restorativeMinutes}m deep+REM',
+                                        accent: colors.green,
+                                      ),
+                                      MetricTile(
+                                        label: 'Consistency',
+                                        value:
+                                            '${app.sleepAnalysis!.consistencyPercent.toStringAsFixed(1)}%',
+                                        hint:
+                                            app.sleepAnalysis!.consistencyLabel,
+                                      ),
+                                    ],
                                   ),
                                 ],
                                 if (brief != null) ...[
@@ -389,7 +518,7 @@ class TodayScreen extends StatelessWidget {
                                       value: day.readinessScore == null
                                           ? '—'
                                           : day.readinessScore!
-                                              .toStringAsFixed(0),
+                                              .toStringAsFixed(1),
                                       hint: 'composite',
                                       accent: colors.green,
                                     ),
@@ -397,15 +526,30 @@ class TodayScreen extends StatelessWidget {
                                       label: 'Stress',
                                       value: day.stressScore == null
                                           ? '—'
-                                          : day.stressScore!.toStringAsFixed(0),
+                                          : day.stressScore!.toStringAsFixed(1),
                                       hint: 'lower is calmer',
                                       accent: colors.strain,
+                                    ),
+                                    MetricTile(
+                                      label: 'SpO₂',
+                                      value: day.spo2Percent == null
+                                          ? '—'
+                                          : '${day.spo2Percent!.toStringAsFixed(1)}%',
+                                      hint: () {
+                                        final ox = app.oxygenAnalysis;
+                                        if (ox?.minPercent != null &&
+                                            ox?.maxPercent != null) {
+                                          return 'range ${ox!.minPercent!.toStringAsFixed(1)}–${ox.maxPercent!.toStringAsFixed(1)}%';
+                                        }
+                                        return 'overnight avg';
+                                      }(),
+                                      accent: colors.spo2,
                                     ),
                                     MetricTile(
                                       label: 'HRV',
                                       value: day.hrvMs == null
                                           ? '—'
-                                          : day.hrvMs!.toStringAsFixed(0),
+                                          : day.hrvMs!.toStringAsFixed(1),
                                       hint: 'ms',
                                       accent: colors.green,
                                     ),
@@ -414,17 +558,40 @@ class TodayScreen extends StatelessWidget {
                                       value: day.restingHeartRate == null
                                           ? '—'
                                           : day.restingHeartRate!
+                                              .toStringAsFixed(1),
+                                      hint: 'bpm',
+                                      accent: colors.heart,
+                                    ),
+                                    MetricTile(
+                                      label: 'Avg HR',
+                                      value: day.avgHeartRate == null
+                                          ? '—'
+                                          : day.avgHeartRate!
                                               .toStringAsFixed(0),
                                       hint: 'bpm',
                                       accent: colors.heart,
                                     ),
                                     MetricTile(
-                                      label: 'SpO₂',
-                                      value: day.spo2Percent == null
-                                          ? '—'
-                                          : '${day.spo2Percent!.toStringAsFixed(1)}%',
-                                      hint: 'overnight avg',
-                                      accent: colors.spo2,
+                                      label: 'Min / Max HR',
+                                      value: [
+                                        day.minHeartRate?.toStringAsFixed(0) ??
+                                            '—',
+                                        day.maxHeartRate?.toStringAsFixed(0) ??
+                                            '—',
+                                      ].join(' / '),
+                                      hint: 'bpm',
+                                      accent: colors.heart,
+                                    ),
+                                    MetricTile(
+                                      label: 'VO₂ max',
+                                      value: day.vo2Max == null
+                                          ? (app.effectiveBody.vo2Max == null
+                                              ? '—'
+                                              : app.effectiveBody.vo2Max!
+                                                  .toStringAsFixed(1))
+                                          : day.vo2Max!.toStringAsFixed(1),
+                                      hint: 'ml/kg/min',
+                                      accent: colors.green,
                                     ),
                                     MetricTile(
                                       label: 'Resp. rate',
@@ -444,17 +611,6 @@ class TodayScreen extends StatelessWidget {
                                       accent: colors.strain,
                                     ),
                                     MetricTile(
-                                      label: 'VO₂ max',
-                                      value: day.vo2Max == null
-                                          ? (app.effectiveBody.vo2Max == null
-                                              ? '—'
-                                              : app.effectiveBody.vo2Max!
-                                                  .toStringAsFixed(1))
-                                          : day.vo2Max!.toStringAsFixed(1),
-                                      hint: 'cardio fitness',
-                                      accent: colors.green,
-                                    ),
-                                    MetricTile(
                                       label: 'Sleep need',
                                       value: formatMinutes(
                                         day.sleepNeededMinutes ??
@@ -470,12 +626,12 @@ class TodayScreen extends StatelessWidget {
                                       label: 'Body',
                                       value: Units.weight(
                                         app.effectiveBody.weightKg,
-                                        metric: app.profile.useMetric,
+                                        metric: true,
                                       ),
                                       hint: [
                                         Units.height(
                                           app.effectiveBody.heightCm,
-                                          metric: app.profile.useMetric,
+                                          metric: true,
                                         ),
                                         if (app.effectiveBody.bodyFatPercent !=
                                             null)
@@ -501,24 +657,32 @@ class TodayScreen extends StatelessWidget {
                                         label: 'Out of range',
                                         value:
                                             '${day.heartRateZones!.outOfRangeMinutes}m',
+                                        hint:
+                                            '${day.heartRateZones!.percentOf(day.heartRateZones!.outOfRangeMinutes)}%',
                                         accent: colors.textMuted,
                                       ),
                                       MetricTile(
                                         label: 'Fat burn',
                                         value:
                                             '${day.heartRateZones!.fatBurnMinutes}m',
+                                        hint:
+                                            '${day.heartRateZones!.percentOf(day.heartRateZones!.fatBurnMinutes)}%',
                                         accent: colors.strain,
                                       ),
                                       MetricTile(
                                         label: 'Cardio',
                                         value:
                                             '${day.heartRateZones!.cardioMinutes}m',
+                                        hint:
+                                            '${day.heartRateZones!.percentOf(day.heartRateZones!.cardioMinutes)}%',
                                         accent: colors.heart,
                                       ),
                                       MetricTile(
                                         label: 'Peak',
                                         value:
                                             '${day.heartRateZones!.peakMinutes}m',
+                                        hint:
+                                            '${day.heartRateZones!.percentOf(day.heartRateZones!.peakMinutes)}%',
                                         accent: colors.green,
                                       ),
                                     ],
@@ -663,6 +827,70 @@ class TodayScreen extends StatelessWidget {
   }
 }
 
+class _BodyImportCard extends StatelessWidget {
+  const _BodyImportCard({required this.app, required this.colors});
+
+  final AppController app;
+  final OpenAirColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Finish body profile',
+            style: TextStyle(
+              color: colors.green,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Import height & weight from Google Health (cm / kg) so recovery and strain stay accurate.',
+            style: TextStyle(color: colors.textSecondary, height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              FilledButton(
+                onPressed: () async {
+                  final ok = await app.importBodyFromGoogleHealth();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'Imported body from Google Health'
+                            : (app.errorMessage ??
+                                'No body metrics found yet'),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Import now'),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => context.push('/profile'),
+                child: const Text('Edit profile'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConnectCard extends StatelessWidget {
   const _ConnectCard({required this.app, required this.colors});
 
@@ -683,7 +911,7 @@ class _ConnectCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Connect Google Health',
+            'Connect Fitbit via Google Health',
             style: TextStyle(
               color: colors.green,
               fontWeight: FontWeight.w800,
@@ -691,14 +919,20 @@ class _ConnectCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Sign in once with the Google account linked to Fitbit. OpenAir keeps the session and shows a coaching summary from your cloud health data.',
+            'Sign in with the Google account linked to Fitbit. OpenAir pulls sleep, heart, steps, calories, and more from Google Health.',
             style: TextStyle(color: colors.textSecondary, height: 1.35),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: app.syncing ? null : app.connectGoogle,
-            icon: const Icon(Icons.favorite),
-            label: const Text('Connect Google Health'),
+            icon: const Icon(Icons.watch),
+            label: const Text('Connect Fitbit / Google Health'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/profile'),
+            icon: const Icon(Icons.accessibility_new),
+            label: const Text('Import body profile'),
           ),
         ],
       ),
@@ -714,9 +948,12 @@ class _EmptyConnected extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final body = app.effectiveBody;
+    final hasBody = body.weightKg != null || body.heightCm != null;
     return Padding(
-      padding: const EdgeInsets.only(top: 40),
+      padding: const EdgeInsets.only(top: 24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             'Waiting for Google Health data',
@@ -739,10 +976,27 @@ class _EmptyConnected extends StatelessWidget {
               style: TextStyle(color: colors.heart),
             ),
           ],
-          const SizedBox(height: 16),
-          FilledButton(
+          const SizedBox(height: 20),
+          FilledButton.icon(
             onPressed: app.syncing ? null : app.refresh,
-            child: const Text('Refresh summary'),
+            icon: const Icon(Icons.sync),
+            label: const Text('Refresh Fitbit data'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.tonalIcon(
+            onPressed: () => context.push('/profile'),
+            icon: const Icon(Icons.accessibility_new),
+            label: Text(
+              hasBody
+                  ? 'Review body profile (${Units.height(body.heightCm, metric: true)})'
+                  : 'Import body profile from Google Health',
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: app.syncing ? null : app.connectGoogle,
+            icon: const Icon(Icons.watch),
+            label: const Text('Reconnect Fitbit account'),
           ),
         ],
       ),

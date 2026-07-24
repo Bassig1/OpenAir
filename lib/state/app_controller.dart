@@ -176,8 +176,6 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  List<GuidedProgram> get programs => ScoreEngine.guidedPrograms;
-
   List<InsightItem> get todaysInsights => selectedDay?.insights ?? const [];
 
   List<HealthInsightCard> get healthInsightCards {
@@ -218,6 +216,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     final day = selectedDay;
     if (day == null) return null;
     return _analysis.sleep(day, profile: profile, history: days);
+  }
+
+  StrainDayAnalysis? get strainAnalysis {
+    final day = selectedDay;
+    if (day == null) return null;
+    return _analysis.strain(day, profile: profile);
   }
 
   HeartbeatAnalysis? get heartbeatAnalysis {
@@ -269,7 +273,6 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       }
       manualWorkouts = await _workoutStore.loadAll();
       await _healthClient.configure(serverClientId: googleWebClientId);
-      if (alertsEnabled) await _notifications.init();
       final cachedAi = await _settings.getAiAnalysis();
       aiAnalysis = cachedAi.text;
       aiAnalysisDayKey = cachedAi.dayKey;
@@ -295,16 +298,27 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       await _loadJournalForSelected();
     }
 
+    // Show UI immediately — never block cold start on network sync.
+    loading = false;
+    notifyListeners();
+    unawaited(_finishBootstrapInBackground());
+  }
+
+  Future<void> _finishBootstrapInBackground() async {
+    try {
+      if (alertsEnabled) await _notifications.init();
+    } catch (_) {}
+
     try {
       final silent = await _healthClient.signInSilently();
       if (silent != null) {
         googleConnected = true;
         accountEmail = silent.email;
         await _settings.setGoogleConnectedFlag(true);
+        notifyListeners();
       } else if (googleConnected) {
-        // Flag said connected but silent restore failed — keep cached summary,
-        // clear the sticky "must reconnect" only after a real sign-out.
         accountEmail = null;
+        notifyListeners();
       }
     } catch (_) {}
 
@@ -585,6 +599,7 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     profile = profile.copyWith(
       weightKg: cloud.weightKg ?? profile.weightKg,
       heightCm: cloud.heightCm ?? profile.heightCm,
+      useMetric: true,
     );
     await _settings.setUserProfileJson(jsonEncode(profile.toJson()));
     notifyListeners();

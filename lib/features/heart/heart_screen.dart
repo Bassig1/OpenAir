@@ -66,6 +66,14 @@ class HeartScreen extends StatelessWidget {
                   accent: colors.heart,
                 ),
                 MetricTile(
+                  label: 'Average',
+                  value: app.heartbeatAnalysis!.avgHr == null
+                      ? '—'
+                      : '${app.heartbeatAnalysis!.avgHr!.round()}',
+                  hint: 'bpm today',
+                  accent: colors.heart,
+                ),
+                MetricTile(
                   label: 'HRV',
                   value: app.heartbeatAnalysis!.hrvMs == null
                       ? '—'
@@ -77,6 +85,16 @@ class HeartScreen extends StatelessWidget {
                   label: 'Min / Max',
                   value: '${app.heartbeatAnalysis!.minHr?.round() ?? '—'} / ${app.heartbeatAnalysis!.maxHr?.round() ?? '—'}',
                   hint: 'bpm',
+                ),
+                MetricTile(
+                  label: 'VO₂ max',
+                  value: day.vo2Max == null
+                      ? (body.vo2Max == null
+                          ? '—'
+                          : body.vo2Max!.toStringAsFixed(1))
+                      : day.vo2Max!.toStringAsFixed(1),
+                  hint: 'ml/kg/min',
+                  accent: colors.green,
                 ),
                 MetricTile(
                   label: 'Zones',
