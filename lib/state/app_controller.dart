@@ -109,12 +109,12 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get isConnected => googleConnected;
 
-  /// Personal build: use Settings key or `--dart-define=GEMINI_API_KEY=...`.
-  /// Public repo ships with no baked-in key.
+  /// Personal builds: local_secrets / dart-define win so a stale Settings key
+  /// cannot break coaching. Public builds with empty defaults still use Settings.
   String get effectiveGeminiKey {
-    final override = geminiApiKey?.trim() ?? '';
-    if (override.isNotEmpty) return override;
-    return GeminiConfig.defaultApiKey;
+    final baked = GeminiConfig.defaultApiKey.trim();
+    if (baked.isNotEmpty) return baked;
+    return geminiApiKey?.trim() ?? '';
   }
 
   bool get geminiReady => effectiveGeminiKey.isNotEmpty;
@@ -871,15 +871,20 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
       }
       chat = [...chat, ChatMessage(role: 'assistant', text: answer)];
     } catch (e) {
+      final detail = e
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .replaceFirst('Bad state: ', '');
       chat = [
         ...chat,
         ChatMessage(
           role: 'assistant',
-          text: _localCoach.answer(
-            question: trimmed,
-            recentDays: recent,
-            profile: profile,
-          ),
+          text: 'Gemini could not answer ($detail).\n\n'
+              '${_localCoach.answer(
+                question: trimmed,
+                recentDays: recent,
+                profile: profile,
+              )}',
         ),
       ];
     }

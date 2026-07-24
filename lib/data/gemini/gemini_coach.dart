@@ -115,8 +115,15 @@ class GeminiCoach {
             msg.contains('not found') ||
             msg.contains('quota') ||
             msg.contains('resource_exhausted') ||
-            msg.contains('unavailable');
+            msg.contains('unavailable') ||
+            msg.contains('leaked');
         if (!retryable) rethrow;
+        // Brief pause before trying the next model on quota / rate limits.
+        if (msg.contains('429') ||
+            msg.contains('quota') ||
+            msg.contains('resource_exhausted')) {
+          await Future<void>.delayed(const Duration(milliseconds: 800));
+        }
       }
     }
 

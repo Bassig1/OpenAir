@@ -65,7 +65,7 @@ class _CoachScreenState extends State<CoachScreen> {
               child: Text(
                 ready
                     ? 'Ask Gemini to summarize sleep, recovery, and vitals with exact percentages from your Google Health data.'
-                    : 'Connect Google Health to unlock Gemini coaching on the project free tier.',
+                    : 'Gemini is not configured in this build. Add a key in Settings → Advanced (or local_secrets.dart on your PC).',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colors.textSecondary,
                     ),
