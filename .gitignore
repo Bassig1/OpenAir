@@ -34,11 +34,15 @@ migrate_working_dir/
 /coverage/
 oauth_web_client_id.txt
 
-# Private health dumps for Cursor review
+# Private health dumps / local OAuth artifacts (never commit)
 /diagnostics/*.json
+/diagnostics/*.txt
 !/diagnostics/README.md
 /tool/oauth_client.json
 /tool/client_secret.json
+*.secrets.*
+.env
+.env.*
 
 
 # Symbolication related

@@ -256,10 +256,14 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       geminiApiKey = await _settings.getGeminiApiKey();
+      geminiApiKey = await _settings.getGeminiApiKey();
       googleWebClientId = await _settings.getGoogleWebClientId();
       if (googleWebClientId == null || googleWebClientId!.trim().isEmpty) {
-        googleWebClientId = OAuthConfig.defaultWebClientId;
-        await _settings.setGoogleWebClientId(googleWebClientId);
+        final fromEnv = OAuthConfig.defaultWebClientId.trim();
+        if (fromEnv.isNotEmpty) {
+          googleWebClientId = fromEnv;
+          await _settings.setGoogleWebClientId(googleWebClientId);
+        }
       }
       googleConnected = await _settings.getGoogleConnectedFlag();
       alertsEnabled = await _settings.getAlertsEnabled();
@@ -271,14 +275,22 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
         );
       }
       manualWorkouts = await _workoutStore.loadAll();
-      await _healthClient.configure(serverClientId: googleWebClientId);
+      if (googleWebClientId != null && googleWebClientId!.trim().isNotEmpty) {
+        await _healthClient.configure(serverClientId: googleWebClientId);
+      }
       final cachedAi = await _settings.getAiAnalysis();
       aiAnalysis = cachedAi.text;
       aiAnalysisDayKey = cachedAi.dayKey;
     } catch (_) {
-      googleWebClientId ??= OAuthConfig.defaultWebClientId;
+      final fromEnv = OAuthConfig.defaultWebClientId.trim();
+      if ((googleWebClientId == null || googleWebClientId!.trim().isEmpty) &&
+          fromEnv.isNotEmpty) {
+        googleWebClientId = fromEnv;
+      }
       try {
-        await _healthClient.configure(serverClientId: googleWebClientId);
+        if (googleWebClientId != null && googleWebClientId!.trim().isNotEmpty) {
+          await _healthClient.configure(serverClientId: googleWebClientId);
+        }
       } catch (_) {}
     }
 
@@ -737,10 +749,15 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     errorMessage = null;
     notifyListeners();
     try {
-      final clientId =
+      var clientId =
           (googleWebClientId == null || googleWebClientId!.trim().isEmpty)
-              ? OAuthConfig.defaultWebClientId
-              : googleWebClientId!;
+              ? OAuthConfig.defaultWebClientId.trim()
+              : googleWebClientId!.trim();
+      if (clientId.isEmpty) {
+        throw StateError(
+          'Add your Google Web OAuth Client ID in Settings → Advanced first.',
+        );
+      }
       googleWebClientId = clientId;
       await _settings.setGoogleWebClientId(clientId);
       await _healthClient.configure(serverClientId: clientId);

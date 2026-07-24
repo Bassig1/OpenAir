@@ -54,7 +54,7 @@ def find_client() -> Path:
             return p
     raise SystemExit(
         "Missing OAuth client JSON. Save a Desktop OAuth client as tool/oauth_client.json\n"
-        "from https://console.cloud.google.com/apis/credentials?project=YOUR_GCP_PROJECT"
+        "from https://console.cloud.google.com/apis/credentials"
     )
 
 

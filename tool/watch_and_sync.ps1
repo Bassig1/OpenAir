@@ -12,8 +12,8 @@ Write-Host "Waiting for Desktop OAuth client at:"
 Write-Host "  $client"
 Write-Host ""
 Write-Host "Create it here (Desktop app), download JSON, save as oauth_client.json:"
-Write-Host "  https://console.cloud.google.com/auth/clients/create?project=YOUR_GCP_PROJECT"
-Start-Process "https://console.cloud.google.com/auth/clients/create?project=YOUR_GCP_PROJECT"
+Write-Host "  https://console.cloud.google.com/auth/clients/create"
+Start-Process "https://console.cloud.google.com/auth/clients/create"
 
 $deadline = (Get-Date).AddMinutes(15)
 while (-not (Test-Path $client)) {

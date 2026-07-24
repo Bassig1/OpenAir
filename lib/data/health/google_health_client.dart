@@ -94,8 +94,14 @@ class GoogleHealthClient {
 
   /// Update Web client ID without signing the user out (keeps session across launches).
   Future<void> configure({String? serverClientId}) async {
-    final next =
-        _normalizeClientId(serverClientId) ?? OAuthConfig.defaultWebClientId;
+    final next = _normalizeClientId(serverClientId) ??
+        _normalizeClientId(OAuthConfig.defaultWebClientId);
+    if (next == null || next.isEmpty) {
+      throw StateError(
+        'Google Web OAuth Client ID is not set. Paste it in Settings → Advanced, '
+        'or build with --dart-define=GOOGLE_WEB_CLIENT_ID=...',
+      );
+    }
     if (next == _serverClientId) return;
     _serverClientId = next;
     _googleSignIn = _buildSignIn(next);
@@ -103,7 +109,7 @@ class GoogleHealthClient {
 
   Future<GoogleSignInAccount?> signIn() async {
     try {
-      if (_serverClientId == null) {
+      if (_serverClientId == null || _serverClientId!.isEmpty) {
         await configure(serverClientId: OAuthConfig.defaultWebClientId);
       }
       final account = await _googleSignIn.signIn();
@@ -126,7 +132,7 @@ class GoogleHealthClient {
   /// Restore the previous Google session. Does not force a UI prompt.
   Future<GoogleSignInAccount?> signInSilently() async {
     try {
-      if (_serverClientId == null) {
+      if (_serverClientId == null || _serverClientId!.isEmpty) {
         await configure(serverClientId: OAuthConfig.defaultWebClientId);
       }
       var account = await _googleSignIn.signInSilently();

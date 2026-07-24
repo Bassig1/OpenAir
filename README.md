@@ -40,13 +40,13 @@ flutter pub get
 flutter run
 ```
 
-Optional Gemini:
+Optional Gemini / OAuth (do not commit keys):
 
 ```bash
-flutter run --dart-define=GEMINI_API_KEY=your_key_here
+flutter run --dart-define=GEMINI_API_KEY=your_key_here --dart-define=GOOGLE_WEB_CLIENT_ID=your_web_client_id
 ```
 
-Or paste a key in Settings. Connect with the Google account linked to Fitbit, then pull to refresh after the Fitbit app syncs.
+Or paste both in Settings → Advanced. Connect with the Google account linked to Fitbit, then pull to refresh after the Fitbit app syncs.
 
 You’ll need your own Google Cloud OAuth client (Web client ID + Android package/SHA-1). See `docs/MULTI_USER_CLOUD_SETUP.md` and `tool/SETUP_OAUTH.md`.
 

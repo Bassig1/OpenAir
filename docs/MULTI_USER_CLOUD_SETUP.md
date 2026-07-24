@@ -1,6 +1,6 @@
 # Multi-user Google Cloud checklist (OpenAir)
 
-Project: `YOUR_GCP_PROJECT` (Web Client ID `806833732413-…`)
+Use **your own** Google Cloud project and OAuth clients. Do not commit Client IDs, client secrets, or API keys.
 
 ## Critical: keep consent screen in **Testing**
 
@@ -16,14 +16,14 @@ For personal / private testing:
 ## Console checklist
 
 ### 1. Audience — Testing + your account
-https://console.cloud.google.com/auth/audience?project=YOUR_GCP_PROJECT
+Google Cloud Console → **Audience**
 
 1. User type = **External**
 2. Status = **Testing**
 3. **Test users** → add `your@gmail.com` (the same account linked to Fitbit / Google Health)
 
 ### 2. Data Access — Health scopes
-https://console.cloud.google.com/auth/scopes?project=YOUR_GCP_PROJECT
+Google Cloud Console → **Data Access**
 
 Add if missing:
 - `…/auth/googlehealth.activity_and_fitness.readonly`
@@ -32,13 +32,18 @@ Add if missing:
 - `…/auth/googlehealth.profile.readonly`
 
 ### 3. Clients — Android + Web
-https://console.cloud.google.com/auth/clients?project=YOUR_GCP_PROJECT
+Google Cloud Console → **Clients**
 
 **Android client**
 - Package: `com.openair.openair`
-- SHA-1: `7E:94:37:DD:EF:47:05:C0:BC:CA:7C:15:A0:98:66:C7:23:03:6A:78`
+- SHA-1: use your debug keystore fingerprint (shown in Settings → Advanced)
 
-Keep the existing **Web** client (already baked into the app).
+**Web client**
+- Create a Web application client
+- Paste the Client ID into OpenAir **Settings → Advanced**, or build with:
+  `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=….apps.googleusercontent.com`
+
+Keep `tool/oauth_client.json` / `tool/client_secret.json` local only (gitignored).
 
 ## How to sync / export for Cursor
 
@@ -51,4 +56,4 @@ Do **not** use `gcloud auth application-default login` with Health scopes — th
 
 ## Public launch later
 
-Requires Google OAuth verification (privacy policy, homepage, demo video, security assessment for Restricted scopes). Until then stay in Testing with named test users. Gemini can move to paid / per-user keys at that time without changing the Health sync path.
+Requires Google OAuth verification (privacy policy, homepage, demo video, security assessment for Restricted scopes). Until then stay in Testing with named test users. Gemini keys stay per-user / dart-define — never commit them.
